@@ -228,6 +228,8 @@ static inline long long compute_valid_node(double t1,double t2,double t3, double
                         & 0x8000000000000000)>>63;
 }
 
+int printed = 0;
+
 void proc_subtree(double* tx0, double* ty0, double* tz0,
                   double* tx1, double* ty1, double* tz1,
                   int numRays, unsigned int depth,
@@ -237,11 +239,6 @@ void proc_subtree(double* tx0, double* ty0, double* tz0,
         int hits = 0;
         for(int i = 0; i < numRays; i++){
             if (!any_is_greater(endpoint[i], endpoint[i], endpoint[i], tx1[i], ty1[i], tz1[i])) {
-                // The ray endpoint does not occur in this subtree, but the ray passes through this subtree on its
-                // way to the endpoint, and we're at our maximum depth. Therefore we need to give this node a vote
-                // that it is free space.
-                
-                //just need to find the first hit
                 hits += 1;
                 break; 
             }
@@ -277,16 +274,10 @@ void proc_subtree(double* tx0, double* ty0, double* tz0,
     double* tzm = (double*)calloc(numRays, sizeof(double));
 
     unsigned char* nodes = (unsigned char*)calloc(numRays,sizeof(unsigned char));
-    for(int i = 0; i < numRays; i++){
-        txm[i] = 0.5 * (tx0[i] + tx1[i]);
-        tym[i] = 0.5 * (ty0[i] + ty1[i]);
-        tzm[i] = 0.5 * (tz0[i] + tz1[i]);
-    }
-    
     int cur_index[8] = {0};
     for(int i = 0; i < numRays; i++){
         int currentNode = 0;
-        double t1,t2,t3;
+        double t1,t2,t3,t4,t5,t6;
         int eq;
         long long valid_node;
         unsigned char tmp_node = 0;
@@ -295,6 +286,10 @@ void proc_subtree(double* tx0, double* ty0, double* tz0,
         #ifdef DEBUG_PROC_SUBTREE
             printf("txm = %lf, tym = %lf, tzm = %lf\n", txm, tym, tzm);
         #endif
+
+        txm[i] = 0.5 * (tx0[i] + tx1[i]);
+        tym[i] = 0.5 * (ty0[i] + ty1[i]);
+        tzm[i] = 0.5 * (tz0[i] + tz1[i]);
 
         double tmp1 = ty0[i] - tx0[i];
         double tmp2 = tz0[i] - tx0[i];
@@ -325,84 +320,68 @@ void proc_subtree(double* tx0, double* ty0, double* tz0,
 
         currentNode = 1u<<currentNode;
 
-        eq = ~(((1<<0) - currentNode)>>31);
-        //this should compute if the currentNode is valid.
         t1 = tx0[i] - endpoint[i];
         t2 = ty0[i] - endpoint[i];
         t3 = tz0[i] - endpoint[i];
+        t4 = txm[i] - endpoint[i];
+        t5 = tym[i] - endpoint[i];
+        t6 = tzm[i] - endpoint[i];
+
+
+        eq = ~(((1<<0) - currentNode)>>31);
+        //this should compute if the currentNode is valid.
         valid_node = compute_valid_node(t1,t2,t3,txm[i],tym[i],tzm[i]);
         tmp_node = (unsigned char)(currentNode & valid_node & eq);
-        nodes[i] |= tmp_node;//(tmp_node << a[i]) | (tmp_node >> (-a[i] & 7));
+        nodes[i] |= tmp_node;
         cur_index[a[i]] += (1 & valid_node & eq);
         currentNode = (new_node(txm[i], 4, tym[i], 2, tzm[i], 1) & eq) | (currentNode & ~eq);
 
         eq = ~(((1<<1) - currentNode)>>31);
-        t1 = tx0[i] - endpoint[i];
-        t2 = ty0[i] - endpoint[i];
-        t3 = tzm[i] - endpoint[i];
-        valid_node = compute_valid_node(t1,t2,t3,txm[i],tym[i],tz1[i]);
+        valid_node = compute_valid_node(t1,t2,t6,txm[i],tym[i],tz1[i]);
         tmp_node = (unsigned char)(currentNode & valid_node & eq);
-        nodes[i] |= tmp_node;//(tmp_node << a[i]) | (tmp_node >> (-a[i] & 7));
+        nodes[i] |= tmp_node;
         cur_index[1u^a[i]] += (1 & valid_node & eq);
         currentNode = (new_node(txm[i], 5, tym[i], 3, tz1[i], 8) & eq) | (currentNode & ~eq);
 
         eq = ~(((1<<2) - currentNode)>>31);
-        t1 = tx0[i] - endpoint[i];
-        t2 = tym[i] - endpoint[i];
-        t3 = tz0[i] - endpoint[i];
-        valid_node = compute_valid_node(t1,t2,t3,txm[i],ty1[i],tzm[i]);
+        valid_node = compute_valid_node(t1,t5,t3,txm[i],ty1[i],tzm[i]);
         tmp_node = (unsigned char)(currentNode & valid_node & eq);
-        nodes[i] |= tmp_node;//(tmp_node << a[i]) | (tmp_node >> (-a[i] & 7));
+        nodes[i] |= tmp_node;
         cur_index[2u^a[i]] += (1 & valid_node & eq);
         currentNode = (new_node(txm[i], 6, ty1[i], 8, tzm[i], 3) & eq) | (currentNode & ~eq);
 
         eq = ~(((1<<3) - currentNode)>>31);
-        t1 = tx0[i] - endpoint[i];
-        t2 = tym[i] - endpoint[i];
-        t3 = tzm[i] - endpoint[i];
-        valid_node = compute_valid_node(t1,t2,t3,txm[i],ty1[i],tz1[i]);
+        valid_node = compute_valid_node(t1,t5,t6,txm[i],ty1[i],tz1[i]);
         tmp_node = (unsigned char)(currentNode & valid_node & eq);
-        nodes[i] |= tmp_node;//(tmp_node << a[i]) | (tmp_node >> (-a[i] & 7));
+        nodes[i] |= tmp_node;
         cur_index[3u^a[i]] += (1 & valid_node & eq);
         currentNode = (new_node(txm[i], 7, ty1[i], 8, tz1[i], 8) & eq) | (currentNode & ~eq);
 
         eq = ~(((1<<4) - currentNode)>>31);
-        t1 = txm[i] - endpoint[i];
-        t2 = ty0[i] - endpoint[i];
-        t3 = tz0[i] - endpoint[i];
-        valid_node = compute_valid_node(t1,t2,t3,tx1[i],tym[i],tzm[i]);
+        valid_node = compute_valid_node(t4,t2,t3,tx1[i],tym[i],tzm[i]);
         tmp_node = (unsigned char)(currentNode & valid_node & eq);
-        nodes[i] |= tmp_node;//(tmp_node << a[i]) | (tmp_node >> (-a[i] & 7));
+        nodes[i] |= tmp_node;
         cur_index[4u^a[i]] += (1 & valid_node & eq);
         currentNode = (new_node(tx1[i], 8, tym[i], 6, tzm[i], 5) & eq) | (currentNode & ~eq);
 
         eq = ~(((1<<5) - currentNode)>>31);
-        t1 = txm[i] - endpoint[i];
-        t2 = ty0[i] - endpoint[i];
-        t3 = tzm[i] - endpoint[i];
-        valid_node = compute_valid_node(t1,t2,t3,tx1[i],tym[i],tz1[i]);
+        valid_node = compute_valid_node(t4,t2,t6,tx1[i],tym[i],tz1[i]);
         tmp_node = (unsigned char)(currentNode & valid_node & eq);
-        nodes[i] |= tmp_node;//(tmp_node << a[i]) | (tmp_node >> (-a[i] & 7));
+        nodes[i] |= tmp_node;
         cur_index[5u^a[i]] += (1 & valid_node & eq);
         currentNode = (new_node(tx1[i], 8, tym[i], 7, tz1[i], 8) & eq) | (currentNode & ~eq);
 
         eq = ~(((1<<6) - currentNode)>>31);
-        t1 = txm[i] - endpoint[i];
-        t2 = tym[i] - endpoint[i];
-        t3 = tz0[i] - endpoint[i];
-        valid_node = compute_valid_node(t1,t2,t3,tx1[i],ty1[i],tzm[i]);
+        valid_node = compute_valid_node(t4,t5,t3,tx1[i],ty1[i],tzm[i]);
         tmp_node = (unsigned char)(currentNode & valid_node & eq);
-        nodes[i] |= tmp_node;//(tmp_node << a[i]) | (tmp_node >> (-a[i] & 7));
+        nodes[i] |= tmp_node;
         cur_index[6u^a[i]] += (1 & valid_node & eq);
         currentNode = (new_node(tx1[i], 8, ty1[i], 8, tzm[i], 7) & eq) | (currentNode & ~eq);
 
         eq = ~(((1<<7) - currentNode)>>31);
-        t1 = txm[i] - endpoint[i];
-        t2 = tym[i] - endpoint[i];
-        t3 = tzm[i] - endpoint[i];
-        valid_node = compute_valid_node(t1,t2,t3,tx1[i],ty1[i],tz1[i]);
+        valid_node = compute_valid_node(t4,t5,t6,tx1[i],ty1[i],tz1[i]);
         tmp_node = (unsigned char)(currentNode & valid_node & eq);
-        nodes[i] |= tmp_node;//(tmp_node << a[i]) | (tmp_node >> (-a[i] & 7));
+        nodes[i] |= tmp_node;
         cur_index[7u^a[i]] += (1 & valid_node & eq);
     }
 
