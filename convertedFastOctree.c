@@ -258,9 +258,6 @@ void proc_subtree(double* ray_params,
 
         // Clamp the logOdds between the min/max
         n->logOdds = fmax(CLAMPING_THRES_MIN, fmin(n->logOdds, CLAMPING_THRES_MAX));
-        
-        free(ray_params);
-        free(a);
 
         return;
     }
@@ -270,10 +267,13 @@ void proc_subtree(double* ray_params,
     int cur_index[8] = {0};
 
     for(int i = 0; i < numRays; i++){
-        mid_params[3*i]   = 0.5 * (ray_params[(7*i)] + ray_params[(7*i)+3]);
-        mid_params[(3*i)+1] = 0.5 * (ray_params[(7*i)+1] + ray_params[(7*i)+4]);
-        mid_params[(3*i)+2] = 0.5 * (ray_params[(7*i)+2] + ray_params[(7*i)+5]);
+        int rp_i = 7*i;
+        int md_i = 3*i;
+        mid_params[md_i]   = 0.5 * (ray_params[rp_i] + ray_params[rp_i+3]);
+        mid_params[md_i+1] = 0.5 * (ray_params[rp_i+1] + ray_params[rp_i+4]);
+        mid_params[md_i+2] = 0.5 * (ray_params[rp_i+2] + ray_params[rp_i+5]);
     }
+
     
     for(int i = 0; i < numRays; i++){
         int currentNode = 0;
@@ -538,10 +538,7 @@ void proc_subtree(double* ray_params,
             new_a[7u^a[i]][update_index[7u^a[i]]] = a[i];
             update_index[7u^a[i]]++;
         }         
-    }
-
-    free(ray_params);
-    free(a);   
+    }  
 
     free(nodes); 
 
@@ -553,6 +550,8 @@ void proc_subtree(double* ray_params,
             proc_subtree(new_ray_params[node],
                          cur_index[node], depth + 1, 
                          n->children[node], new_a[node]);
+            free(new_ray_params[node]);
+            free(new_a[node]);
         }
     }
         n->logOdds = maxChildLogLikelihood(n);
@@ -632,6 +631,19 @@ void ray_parameter(Octree* tree, Ray* rays, int numRays) {
 
     // for now assume our point cloud origin and all points exist within the actree bounds
     proc_subtree(ray_params, numRays, 0, tree->root, a);
+
+    free(ray_params);
+    free(a);
+
+    // int chunk_size = 10000;
+    // int chunks = numRays/chunk_size;
+    // int leftover = numRays%chunk_size;
+    // for(int i = 0; i < chunks; i++){
+    //     int num_chunk = i*chunk_size;
+    //     int index = 7*num_chunk;
+    //     proc_subtree(ray_params+index, chunk_size, 0, tree->root, a+num_chunk);
+    // }
+    // proc_subtree(ray_params+7*chunk_size*chunks,leftover, 0, tree->root, a+chunk_size*chunks);
         
 }
 
