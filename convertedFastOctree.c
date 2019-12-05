@@ -443,90 +443,98 @@ void proc_subtree(double* ray_params,
 
 
         if(nodes[i] & (1u<<0)){
-            new_ray_params[a[i]][update_index[a[i]]]    = tx0;
-            new_ray_params[a[i]][update_index[a[i]]+1]  = ty0;
-            new_ray_params[a[i]][update_index[a[i]]+2]  = tz0;
-            new_ray_params[a[i]][update_index[a[i]]+3]  = txm;
-            new_ray_params[a[i]][update_index[a[i]]+4]  = tym;
-            new_ray_params[a[i]][update_index[a[i]]+5]  = tzm;
-            new_ray_params[a[i]][update_index[a[i]]+6]  = endpoint;
+            rp_i = update_index[a[i]]*7;
+            new_ray_params[a[i]][rp_i]    = tx0;
+            new_ray_params[a[i]][rp_i+1]  = ty0;
+            new_ray_params[a[i]][rp_i+2]  = tz0;
+            new_ray_params[a[i]][rp_i+3]  = txm;
+            new_ray_params[a[i]][rp_i+4]  = tym;
+            new_ray_params[a[i]][rp_i+5]  = tzm;
+            new_ray_params[a[i]][rp_i+6]  = endpoint;
             new_a[a[i]][update_index[a[i]]] = a[i];
             update_index[a[i]]++;
         }
         if(nodes[i] & (1u<<1)){
-            new_ray_params[1u^a[i]][update_index[1u^a[i]]]   = tx0;
-            new_ray_params[1u^a[i]][update_index[1u^a[i]]+1] = ty0;
-            new_ray_params[1u^a[i]][update_index[1u^a[i]]+2] = tzm;
-            new_ray_params[1u^a[i]][update_index[1u^a[i]]+3] = txm;
-            new_ray_params[1u^a[i]][update_index[1u^a[i]]+4] = tym;
-            new_ray_params[1u^a[i]][update_index[1u^a[i]]+5] = tz1;
-            new_ray_params[1u^a[i]][update_index[1u^a[i]]+6] = endpoint;
+            rp_i = update_index[1u^a[i]]*7;
+            new_ray_params[1u^a[i]][rp_i]   = tx0;
+            new_ray_params[1u^a[i]][rp_i+1] = ty0;
+            new_ray_params[1u^a[i]][rp_i+2] = tzm;
+            new_ray_params[1u^a[i]][rp_i+3] = txm;
+            new_ray_params[1u^a[i]][rp_i+4] = tym;
+            new_ray_params[1u^a[i]][rp_i+5] = tz1;
+            new_ray_params[1u^a[i]][rp_i+6] = endpoint;
             new_a[1u^a[i]][update_index[1u^a[i]]] = a[i];
             update_index[1u^a[i]]++;
         }
         if(nodes[i] & (1u<<2)){
-            new_ray_params[2u^a[i]][update_index[2u^a[i]]] = tx0;
-            new_ray_params[2u^a[i]][update_index[2u^a[i]]+1] = tym;
-            new_ray_params[2u^a[i]][update_index[2u^a[i]]+2] = tz0;
-            new_ray_params[2u^a[i]][update_index[2u^a[i]]+3] = txm;
-            new_ray_params[2u^a[i]][update_index[2u^a[i]]+4] = ty1;
-            new_ray_params[2u^a[i]][update_index[2u^a[i]]+5] = tzm;
-            new_ray_params[2u^a[i]][update_index[2u^a[i]]+6] = endpoint;
+            rp_i = update_index[2u^a[i]]*7;
+            new_ray_params[2u^a[i]][rp_i] = tx0;
+            new_ray_params[2u^a[i]][rp_i+1] = tym;
+            new_ray_params[2u^a[i]][rp_i+2] = tz0;
+            new_ray_params[2u^a[i]][rp_i+3] = txm;
+            new_ray_params[2u^a[i]][rp_i+4] = ty1;
+            new_ray_params[2u^a[i]][rp_i+5] = tzm;
+            new_ray_params[2u^a[i]][rp_i+6] = endpoint;
             new_a[2u^a[i]][update_index[2u^a[i]]] = a[i];
             update_index[2u^a[i]]++;
         }
         if(nodes[i] & (1u<<3)){
-            new_ray_params[3u^a[i]][update_index[3u^a[i]]] = tx0;
-            new_ray_params[3u^a[i]][update_index[3u^a[i]]+1] = tym;
-            new_ray_params[3u^a[i]][update_index[3u^a[i]]+2] = tzm;
-            new_ray_params[3u^a[i]][update_index[3u^a[i]]+3] = txm;
-            new_ray_params[3u^a[i]][update_index[3u^a[i]]+4] = ty1;
-            new_ray_params[3u^a[i]][update_index[3u^a[i]]+5] = tz1;
-            new_ray_params[3u^a[i]][update_index[3u^a[i]]+6] = endpoint;
+            rp_i = update_index[3u^a[i]]*7;
+            new_ray_params[3u^a[i]][rp_i] = tx0;
+            new_ray_params[3u^a[i]][rp_i+1] = tym;
+            new_ray_params[3u^a[i]][rp_i+2] = tzm;
+            new_ray_params[3u^a[i]][rp_i+3] = txm;
+            new_ray_params[3u^a[i]][rp_i+4] = ty1;
+            new_ray_params[3u^a[i]][rp_i+5] = tz1;
+            new_ray_params[3u^a[i]][rp_i+6] = endpoint;
             new_a[3u^a[i]][update_index[3u^a[i]]] = a[i];
             update_index[3u^a[i]]++;
         }
         if(nodes[i] & (1u<<4)){
-            new_ray_params[4u^a[i]][update_index[4u^a[i]]] = txm;
-            new_ray_params[4u^a[i]][update_index[4u^a[i]]+1] = ty0;
-            new_ray_params[4u^a[i]][update_index[4u^a[i]]+2] = tz0;
-            new_ray_params[4u^a[i]][update_index[4u^a[i]]+3] = tx1;
-            new_ray_params[4u^a[i]][update_index[4u^a[i]]+4] = tym;
-            new_ray_params[4u^a[i]][update_index[4u^a[i]]+5] = tzm;
-            new_ray_params[4u^a[i]][update_index[4u^a[i]]+6] = endpoint;
+            rp_i = update_index[4u^a[i]]*7;
+            new_ray_params[4u^a[i]][rp_i] = txm;
+            new_ray_params[4u^a[i]][rp_i+1] = ty0;
+            new_ray_params[4u^a[i]][rp_i+2] = tz0;
+            new_ray_params[4u^a[i]][rp_i+3] = tx1;
+            new_ray_params[4u^a[i]][rp_i+4] = tym;
+            new_ray_params[4u^a[i]][rp_i+5] = tzm;
+            new_ray_params[4u^a[i]][rp_i+6] = endpoint;
             new_a[4u^a[i]][update_index[4u^a[i]]] = a[i];
             update_index[4u^a[i]]++;
         }
         if(nodes[i] & (1u<<5)){
-            new_ray_params[5u^a[i]][update_index[5u^a[i]]] = txm;
-            new_ray_params[5u^a[i]][update_index[5u^a[i]]+1] = ty0;
-            new_ray_params[5u^a[i]][update_index[5u^a[i]]+2] = tzm;
-            new_ray_params[5u^a[i]][update_index[5u^a[i]]+3] = tx1;
-            new_ray_params[5u^a[i]][update_index[5u^a[i]]+4] = tym;
-            new_ray_params[5u^a[i]][update_index[5u^a[i]]+5] = tz1;
-            new_ray_params[5u^a[i]][update_index[5u^a[i]]+6] = endpoint;
+            rp_i = update_index[5u^a[i]]*7;
+            new_ray_params[5u^a[i]][rp_i] = txm;
+            new_ray_params[5u^a[i]][rp_i+1] = ty0;
+            new_ray_params[5u^a[i]][rp_i+2] = tzm;
+            new_ray_params[5u^a[i]][rp_i+3] = tx1;
+            new_ray_params[5u^a[i]][rp_i+4] = tym;
+            new_ray_params[5u^a[i]][rp_i+5] = tz1;
+            new_ray_params[5u^a[i]][rp_i+6] = endpoint;
             new_a[5u^a[i]][update_index[5u^a[i]]] = a[i];
             update_index[5u^a[i]]++;
         }
         if(nodes[i] & (1u<<6)){
-            new_ray_params[6u^a[i]][update_index[6u^a[i]]] = txm;
-            new_ray_params[6u^a[i]][update_index[6u^a[i]]+1] = tym;
-            new_ray_params[6u^a[i]][update_index[6u^a[i]]+2] = tz0;
-            new_ray_params[6u^a[i]][update_index[6u^a[i]]+3] = tx1;
-            new_ray_params[6u^a[i]][update_index[6u^a[i]]+4] = ty1;
-            new_ray_params[6u^a[i]][update_index[6u^a[i]]+5] = tzm;
-            new_ray_params[6u^a[i]][update_index[6u^a[i]]+6] = endpoint;
+            rp_i = update_index[6u^a[i]]*7;
+            new_ray_params[6u^a[i]][rp_i] = txm;
+            new_ray_params[6u^a[i]][rp_i+1] = tym;
+            new_ray_params[6u^a[i]][rp_i+2] = tz0;
+            new_ray_params[6u^a[i]][rp_i+3] = tx1;
+            new_ray_params[6u^a[i]][rp_i+4] = ty1;
+            new_ray_params[6u^a[i]][rp_i+5] = tzm;
+            new_ray_params[6u^a[i]][rp_i+6] = endpoint;
             new_a[6u^a[i]][update_index[6u^a[i]]] = a[i];
             update_index[6u^a[i]]++;
         }
         if(nodes[i] & (1u<<7)){
-            new_ray_params[7u^a[i]][update_index[7u^a[i]]] = txm;
-            new_ray_params[7u^a[i]][update_index[7u^a[i]]+1] = tym;
-            new_ray_params[7u^a[i]][update_index[7u^a[i]]+2] = tzm;
-            new_ray_params[7u^a[i]][update_index[7u^a[i]]+3] = tx1;
-            new_ray_params[7u^a[i]][update_index[7u^a[i]]+4] = ty1;
-            new_ray_params[7u^a[i]][update_index[7u^a[i]]+5] = tz1;
-            new_ray_params[7u^a[i]][update_index[7u^a[i]]+6] = endpoint;
+            rp_i = update_index[7u^a[i]]*7;
+            new_ray_params[7u^a[i]][rp_i] = txm;
+            new_ray_params[7u^a[i]][rp_i+1] = tym;
+            new_ray_params[7u^a[i]][rp_i+2] = tzm;
+            new_ray_params[7u^a[i]][rp_i+3] = tx1;
+            new_ray_params[7u^a[i]][rp_i+4] = ty1;
+            new_ray_params[7u^a[i]][rp_i+5] = tz1;
+            new_ray_params[7u^a[i]][rp_i+6] = endpoint;
             new_a[7u^a[i]][update_index[7u^a[i]]] = a[i];
             update_index[7u^a[i]]++;
         }         
