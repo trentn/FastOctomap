@@ -567,40 +567,44 @@ void ray_parameter(Octree* tree, Ray* rays, int numRays) {
     unsigned char* a = (unsigned char*)calloc(numRays, sizeof(unsigned char));
 
     for(int i = 0; i < numRays; i++){
-        long long reflected, neg, cur, tmp;
+        long long reflected, neg, cur, tmp, sign_bit_if_negative;
         Ray* r = (rays+i);
 
-        reflected = *((long long*)(&(r->direction.x)))>>63;
-        cur = *((unsigned long long*)(&(r->origin.x)));
-        neg = *((unsigned long long*)(&(r->origin.x))) ^ 0x8000000000000000;
-        tmp = (neg & reflected) | (cur & ~reflected);
-        r->origin.x = *((double*)(&tmp));
+        // sign_bit_if_neg = directionX & 0x8000000000000000;
+        // originX = originX XOR sign_bit_if_neg;
+        // directionX = directionX & 0x7FFFFFFFFFFFFFFF;
+        // sign_bit_if_neg = sign_bit_if_neg >> 63; // right shift sign-extend
+        // partial_a = a_number & sign_bit_if_neg;
+        // local_a = local_a | partial_a;
+
         cur = *((unsigned long long*)(&(r->direction.x)));
-        neg = *((unsigned long long*)(&(r->direction.x))) & 0x7fffffffffffffff;
-        tmp = (neg & reflected) | (cur & ~reflected);
+        sign_bit_if_negative = cur & 0x8000000000000000ull;
+        tmp = *((unsigned long long*)(&(r->origin.x)));
+        tmp ^= sign_bit_if_negative;
+        r->origin.x = *((double*)(&tmp));
+        tmp = cur & 0x7fffffffffffffffull;
         r->direction.x = *((double*)(&tmp));
+        reflected = *((long long*)(&sign_bit_if_negative))>>63;
         a[i] |= (4u & reflected);
 
-        reflected = *((long long*)(&(r->direction.y)))>>63;
-        cur = *((unsigned long long*)(&(r->origin.y)));
-        neg = *((unsigned long long*)(&(r->origin.y))) ^ 0x8000000000000000;
-        tmp = (neg & reflected) | (cur & ~reflected);
-        r->origin.y = *((double*)(&tmp));
         cur = *((unsigned long long*)(&(r->direction.y)));
-        neg = *((unsigned long long*)(&(r->direction.y))) & 0x7fffffffffffffff;
-        tmp = (neg & reflected) | (cur & ~reflected);
+        sign_bit_if_negative = cur & 0x8000000000000000ull;
+        tmp = *((unsigned long long*)(&(r->origin.y)));
+        tmp ^= sign_bit_if_negative;
+        r->origin.y = *((double*)(&tmp));
+        tmp = cur & 0x7fffffffffffffffull;
         r->direction.y = *((double*)(&tmp));
+        reflected = *((long long*)(&sign_bit_if_negative))>>63;
         a[i] |= (2u & reflected);
 
-        reflected = *((long long*)(&(r->direction.z)))>>63;
-        cur = *((unsigned long long*)(&(r->origin.z)));
-        neg = *((unsigned long long*)(&(r->origin.z))) ^ 0x8000000000000000;
-        tmp = (neg & reflected) | (cur & ~reflected);
-        r->origin.z = *((double*)(&tmp));
         cur = *((unsigned long long*)(&(r->direction.z)));
-        neg = *((unsigned long long*)(&(r->direction.z))) & 0x7fffffffffffffff;
-        tmp = (neg & reflected) | (cur & ~reflected);
+        sign_bit_if_negative = cur & 0x8000000000000000ull;
+        tmp = *((unsigned long long*)(&(r->origin.z)));
+        tmp ^= sign_bit_if_negative;
+        r->origin.z = *((double*)(&tmp));
+        tmp = cur & 0x7fffffffffffffffull;
         r->direction.z = *((double*)(&tmp));
+        reflected = *((long long*)(&sign_bit_if_negative))>>63;
         a[i] |= (1u & reflected);
 
         // Improve IEEE double stability
