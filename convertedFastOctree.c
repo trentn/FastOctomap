@@ -268,7 +268,7 @@ void proc_subtree(double* ray_params,
     double* mid_params = (double*)malloc(3*numRays*sizeof(double));
     unsigned char* nodes = (unsigned char*)calloc(numRays,sizeof(unsigned char));
     int cur_index[8] = {0};
-    
+
     for(int i = 0; i < numRays; i++){
         mid_params[3*i]   = 0.5 * (ray_params[(7*i)] + ray_params[(7*i)+3]);
         mid_params[(3*i)+1] = 0.5 * (ray_params[(7*i)+1] + ray_params[(7*i)+4]);
@@ -612,10 +612,10 @@ void ray_parameter(Octree* tree, Ray* rays, int numRays) {
 
         int rp_i = 7*i;
         ray_params[rp_i] = (tree->min.x - r->origin.x) * rdxInverse;
-        ray_params[rp_i+1] = (tree->max.x - r->origin.x) * rdxInverse;
-        ray_params[rp_i+2] = (tree->min.y - r->origin.y) * rdyInverse;
-        ray_params[rp_i+3] = (tree->max.y - r->origin.y) * rdyInverse;
-        ray_params[rp_i+4] = (tree->min.z - r->origin.z) * rdzInverse;
+        ray_params[rp_i+3] = (tree->max.x - r->origin.x) * rdxInverse;
+        ray_params[rp_i+1] = (tree->min.y - r->origin.y) * rdyInverse;
+        ray_params[rp_i+4] = (tree->max.y - r->origin.y) * rdyInverse;
+        ray_params[rp_i+2] = (tree->min.z - r->origin.z) * rdzInverse;
         ray_params[rp_i+5] = (tree->max.z - r->origin.z) * rdzInverse;
         ray_params[rp_i+6] = r->t_end;
     }
