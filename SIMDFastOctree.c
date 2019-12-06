@@ -9,6 +9,8 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include <immintrin.h>
+
 #include "FastOctree.h"
 
 extern long long rdtsc();
@@ -199,38 +201,81 @@ static inline int is_between_vector3d(const Vector3d* min,
 //###########################################################################################
 // Core algorithm functions
 //###########################################################################################
+const long long signbit = 0x8000000000000000ull;
+const long long all_ones = -1;
+const long long one = 1;
+const long long node_vals[8] = {0x1,0x2,0x4,0x8,0x10,0x20,0x40,0x80};
+const long long zero = 0;
 
-static inline int new_node(double txm, int x, double tym, int y, double tzm, int z)
+static inline __m256i new_node(__m256d txmv, int x, __m256d tymv, int y, __m256d tzmv, int z)
 {
-    unsigned long long currentNode = 0;
+    long x_shift = (63-x);
+    long y_shift = (63-y);
+    long z_shift = (63-z);
 
-    double tmp1 = txm - tym;
-    double tmp2 = txm - tzm;
-    double tmp3 = tym - tzm;
+    __m256d tmp1v = _mm256_sub_pd(txmv, tymv);
+    __m256d tmp2v = _mm256_sub_pd(txmv, tzmv);
+    __m256d tmp3v = _mm256_sub_pd(tymv, tzmv);
+
+    __m256d signbitv = _mm256_broadcast_sd((double*)&signbit);
+    __m128 xshv = _mm_broadcast_ss((float*)&x_shift);
+    __m128 yshv = _mm_broadcast_ss((float*)&y_shift);
+    __m128 zshv = _mm_broadcast_ss((float*)&z_shift);
 
     //X
-    currentNode |= (unsigned long long)(*((unsigned long long*)(&tmp1)) & *((unsigned long long*)(&tmp2)) & 0x8000000000000000)>>(63-x);
+    //currentNode |= (unsigned long long)(*((unsigned long long*)(&tmp1)) & *((unsigned long long*)(&tmp2)) & 0x8000000000000000)>>;
+    __m256d tmpv = _mm256_and_pd(tmp1v,tmp2v);
+    tmpv = _mm256_and_pd(tmpv,signbitv);
+    __m256i currentNodev = _mm256_srl_epi64(_mm256_castpd_si256(tmpv),_mm_castps_si128(xshv));
+
     
     //Y
-    currentNode |= (unsigned long long)(~*((unsigned long long*)(&tmp1)) & *((unsigned long long*)(&tmp3)) & 0x8000000000000000)>>(63-y);
+    //currentNode |= (unsigned long long)(~*((unsigned long long*)(&tmp1)) & *((unsigned long long*)(&tmp3)) & 0x8000000000000000)>>;
+    tmpv = _mm256_andnot_pd(tmp1v,tmp3v);
+    tmpv = _mm256_and_pd(tmpv,signbitv);
+    tmpv = _mm256_castsi256_pd(_mm256_srl_epi64(_mm256_castpd_si256(tmpv),_mm_castps_si128(yshv)));
+    currentNodev = _mm256_or_si256(currentNodev, _mm256_castpd_si256(tmpv));
+
     
     //Z
-    currentNode |= (unsigned long long)( ~*(unsigned long long*)(&tmp3) & ~*(unsigned long long*)(&tmp2) & 0x8000000000000000 )>>(63-z);
+    //currentNode |= (unsigned long long)( ~*(unsigned long long*)(&tmp3) & ~*(unsigned long long*)(&tmp2) & 0x8000000000000000 )>>;
+    __m256i onesv = _mm256_castpd_si256(_mm256_broadcast_sd((double*)&all_ones));
+    tmp2v = _mm256_castsi256_pd(_mm256_xor_si256(_mm256_castpd_si256(tmp2v),onesv));
+    tmpv = _mm256_andnot_pd(tmp3v,tmp2v);
+    tmpv = _mm256_and_pd(tmpv,signbitv);
+    tmpv = _mm256_castsi256_pd(_mm256_srl_epi64(_mm256_castpd_si256(tmpv),_mm_castps_si128(zshv)));
+    currentNodev = _mm256_or_si256(currentNodev, _mm256_castpd_si256(tmpv));
 
-    return (int)currentNode;
+    return currentNodev;
 }
 
-static inline long long compute_valid_node(double t1,double t2,double t3, double tx1, double ty1, double tz1){
+static inline __m256i compute_valid_node(__m256d t1v,__m256d t2v,__m256d t3v, __m256d tx1v, __m256d ty1v, __m256d tz1v){
+    //long shift = 63;
+    //__m128 shiftv = _mm_broadcast_ss((float*)&shift);
+    __m256d onesv = _mm256_broadcast_sd((double*)&all_ones);
+
+
+    __m256d tmp = _mm256_and_pd(t1v,t2v);
+    tx1v = _mm256_xor_pd(tx1v,onesv);
+    tmp = _mm256_and_pd(tmp,t3v);
+    ty1v = _mm256_xor_pd(ty1v,onesv);
+    tmp = _mm256_and_pd(tmp,tx1v);
+    tz1v = _mm256_xor_pd(tz1v,onesv);
+    tmp = _mm256_and_pd(tmp,ty1v);
+    tmp = _mm256_and_pd(tmp,tz1v);
+
+    tmp = _mm256_castsi256_pd(_mm256_srli_epi64(_mm256_castpd_si256(tmp), 32));
+    return _mm256_srai_epi32(_mm256_castpd_si256(tmp), 31);
+
+    
+    /*
     return (long long)(*((unsigned long long*)(&t1)) 
                         & *((unsigned long long*)(&t2))
                         & *((unsigned long long*)(&t3))
                         & ~*((unsigned long long*)(&tx1))
                         & ~*((unsigned long long*)(&ty1))
-                        & ~*((unsigned long long*)(&tz1))
-                        & 0x8000000000000000)>>63;
+                        & ~*((unsigned long long*)(&tz1)))>>63;*/
 }
-
-int printed = 0;
 
 void proc_subtree(double* tx0, double* ty0, double* tz0,
                   double* tx1, double* ty1, double* tz1,
@@ -272,126 +317,329 @@ void proc_subtree(double* tx0, double* ty0, double* tz0,
 
     
     //compute t_ms
-    double* txm = (double*)malloc(numRays*sizeof(double));
-    double* tym = (double*)malloc(numRays*sizeof(double));
-    double* tzm = (double*)malloc(numRays*sizeof(double));
+    double *txm, *tym, *tzm;
+    posix_memalign((void**)&txm,64,numRays*sizeof(double));
+    posix_memalign((void**)&tym,64,numRays*sizeof(double));
+    posix_memalign((void**)&tzm,64,numRays*sizeof(double));
 
     unsigned char* nodes = (unsigned char*)calloc(numRays,sizeof(unsigned char));
     int cur_index[8] = {0};
 
     long long start = rdtsc();
 
-    for(int i = 0; i < numRays; i++){
-
-
+    int max = numRays/4;
+    int i;
+    for(i = 0; i < max; i+=4){
+            /*
             int currentNode = 0;
             double t1,t2,t3,t4,t5,t6;
             int eq;
             unsigned char tmp_node = 0;
+            */
 
+            __m256d tx0v = _mm256_load_pd(tx0+i);
+            __m256d ty0v = _mm256_load_pd(ty0+i);
+            __m256d tz0v = _mm256_load_pd(tz0+i);
+            __m256d tx1v = _mm256_load_pd(tx1+i);
+            __m256d ty1v = _mm256_load_pd(ty1+i);
+            __m256d tz1v = _mm256_load_pd(tz1+i);
+
+            double half = 0.5;
+            __m256d halfv = _mm256_broadcast_sd(&half);
+
+            /*
             double txmt = 0.5 * (tx0[i] + tx1[i]);
             double tymt = 0.5 * (ty0[i] + ty1[i]);
             double tzmt = 0.5 * (tz0[i] + tz1[i]);
+            */
 
+            __m256d txmv = _mm256_add_pd(tx0v,tx1v);
+            txmv = _mm256_mul_pd(txmv,halfv);
+            __m256d tymv = _mm256_add_pd(ty0v,ty1v);
+            tymv = _mm256_mul_pd(tymv,halfv);
+            __m256d tzmv = _mm256_add_pd(tz0v,tz1v);
+            tzmv = _mm256_mul_pd(tzmv,halfv);
+
+
+            /*
             double tmp1 = ty0[i] - tx0[i];
             double tmp2 = tz0[i] - tx0[i];
             double tmp3 = tymt - tx0[i];
             double tmp4 = tzmt - tx0[i];
+            */
 
+            __m256d tmp1v = _mm256_sub_pd(ty0v, tx0v);
+            __m256d tmp2v = _mm256_sub_pd(tz0v, tx0v);
+            __m256d tmp3v = _mm256_sub_pd(tymv, tx0v);
+            __m256d tmp4v = _mm256_sub_pd(tzmv, tx0v);
+
+            /*
             currentNode |= (int)((unsigned long long)(*((unsigned long long*)(&tmp1)) & *((unsigned long long*)(&tmp2)) & *((unsigned long long*)(&tmp3)) & 0x8000000000000000)>>62);
             currentNode |= (int)((unsigned long long)(*((unsigned long long*)(&tmp1)) & *((unsigned long long*)(&tmp2)) & *((unsigned long long*)(&tmp4)) & 0x8000000000000000)>>63);
+            */
+           __m256i signbitv = _mm256_castpd_si256(_mm256_broadcast_sd((double*)&signbit));
+           __m256i onesv = _mm256_castpd_si256(_mm256_broadcast_sd((double*)&all_ones));
 
+            __m256i tmpv = _mm256_and_si256(_mm256_castpd_si256(tmp1v),_mm256_castpd_si256(tmp2v));
+            tmpv = _mm256_and_si256(tmpv,_mm256_castpd_si256(tmp3v));
+            __m256i currentNodev = _mm256_and_si256(tmpv, signbitv);
+            tmpv = _mm256_and_si256(_mm256_castpd_si256(tmp1v),_mm256_castpd_si256(tmp2v));
+            tmpv = _mm256_and_si256(tmpv,_mm256_castpd_si256(tmp4v));
+            tmpv = _mm256_and_si256(tmpv, signbitv);
+            currentNodev = _mm256_or_si256(currentNodev,tmpv);
+            
+
+            /*
             double tmp5 = tz0[i] - ty0[i];
             tmp3 = txmt - ty0[i];
             tmp4 = tzmt - ty0[i];
+            */
 
+            __m256d tmp5v = _mm256_sub_pd(tz0v, ty0v);
+            tmp3v = _mm256_sub_pd(txmv, ty0v);
+            tmp4v = _mm256_sub_pd(tzmv, ty0v);
+            
+            /*
             currentNode |= (int)((unsigned long long)(~*((unsigned long long*)(&tmp1)) & *((unsigned long long*)(&tmp5)) & *((unsigned long long*)(&tmp3)) & 0x8000000000000000)>>61);
             currentNode |= (int)((unsigned long long)(~*((unsigned long long*)(&tmp1)) & *((unsigned long long*)(&tmp5)) & *((unsigned long long*)(&tmp4)) & 0x8000000000000000)>>63);
+            */
+            tmpv = _mm256_andnot_si256(_mm256_castpd_si256(tmp1v),_mm256_castpd_si256(tmp5v));
+            tmpv = _mm256_and_si256(tmpv,_mm256_castpd_si256(tmp3v));
+            tmpv = _mm256_and_si256(tmpv, signbitv);
+            currentNodev = _mm256_or_si256(currentNodev,tmpv);
+            tmpv = _mm256_andnot_si256(_mm256_castpd_si256(tmp1v),_mm256_castpd_si256(tmp5v));
+            tmpv = _mm256_and_si256(tmpv,_mm256_castpd_si256(tmp4v));
+            tmpv = _mm256_and_si256(tmpv, signbitv);
+            currentNodev = _mm256_or_si256(currentNodev,tmpv);
 
+            /*
             tmp3 = txmt - tz0[i];
             tmp4 = tymt - tz0[i];
+            */
 
+            tmp3v = _mm256_sub_pd(txmv, tz0v);
+            tmp4v = _mm256_sub_pd(tymv, tz0v);
+
+            /*
             currentNode |= (int)((unsigned long long)(~*((unsigned long long*)(&tmp2)) & ~*((unsigned long long*)(&tmp5)) & *((unsigned long long*)(&tmp3)) & 0x8000000000000000)>>61);
             currentNode |= (int)((unsigned long long)(~*((unsigned long long*)(&tmp2)) & ~*((unsigned long long*)(&tmp5)) & *((unsigned long long*)(&tmp4)) & 0x8000000000000000)>>62);
+            */
+            
+            tmp5v = _mm256_castsi256_pd(_mm256_xor_si256(_mm256_castpd_si256(tmp5v),onesv));
+            tmpv = _mm256_andnot_si256(_mm256_castpd_si256(tmp2v),_mm256_castpd_si256(tmp5v));
+            tmpv = _mm256_and_si256(tmpv,_mm256_castpd_si256(tmp3v));
+            tmpv = _mm256_and_si256(tmpv, signbitv);
+            currentNodev = _mm256_or_si256(currentNodev,tmpv);
+            tmpv = _mm256_andnot_si256(_mm256_castpd_si256(tmp2v),_mm256_castpd_si256(tmp5v));
+            tmpv = _mm256_and_si256(tmpv,_mm256_castpd_si256(tmp4v));
+            tmpv = _mm256_and_si256(tmpv, signbitv);
+            currentNodev = _mm256_or_si256(currentNodev,tmpv);
 
-            currentNode = 1u<<currentNode;
+            onesv = _mm256_castpd_si256(_mm256_broadcast_sd((double*)&one));
+            //currentNode = 1u<<currentNode;
+            currentNodev = _mm256_sll_epi64(onesv, _mm256_castsi256_si128(currentNodev));
 
+
+            /*
             t1 = tx0[i] - endpoint[i];
             t2 = ty0[i] - endpoint[i];
             t3 = tz0[i] - endpoint[i];
             t4 = txmt - endpoint[i];
             t5 = tymt - endpoint[i];
             t6 = tzmt - endpoint[i];
+            */
 
+            __m256d endpointv = _mm256_load_pd(endpoint+i);
+            __m256d t1v = _mm256_sub_pd(tx0v, endpointv);
+            __m256d t2v = _mm256_sub_pd(ty0v, endpointv);
+            __m256d t3v = _mm256_sub_pd(tz0v, endpointv);
+            __m256d t4v = _mm256_sub_pd(txmv, endpointv);
+            __m256d t5v = _mm256_sub_pd(tymv, endpointv);
+            __m256d t6v = _mm256_sub_pd(tzmv, endpointv);
 
-            int nextNode0, nextNode1, nextNode2, nextNode3, nextNode4, nextNode5, nextNode6;
-            nextNode0 = new_node(txmt, 4, tymt, 2, tzmt, 1);
-            nextNode1 = new_node(txmt, 5, tymt, 3, tz1[i], 8);
-            nextNode2 = new_node(txmt, 6, ty1[i], 8, tzmt, 3);       
-            nextNode3 = new_node(txmt, 7, ty1[i], 8, tz1[i], 8);
-            nextNode4 = new_node(tx1[i], 8, tymt, 6, tzmt, 5);
-            nextNode5 = new_node(tx1[i], 8, tymt, 7, tz1[i], 8);
-            nextNode6 = new_node(tx1[i], 8, ty1[i], 8, tzmt, 7);
-
-            long long valid_node;
             
+            __m256i nextNode0, nextNode1, nextNode2, nextNode3, nextNode4, nextNode5, nextNode6;
+            nextNode0 = new_node(txmv, 4, tymv, 2, tzmv, 1);
+            nextNode1 = new_node(txmv, 5, tymv, 3, tz1v, 8);
+            nextNode2 = new_node(txmv, 6, ty1v, 8, tzmv, 3);       
+            nextNode3 = new_node(txmv, 7, ty1v, 8, tz1v, 8);
+            nextNode4 = new_node(tx1v, 8, tymv, 6, tzmv, 5);
+            nextNode5 = new_node(tx1v, 8, tymv, 7, tz1v, 8);
+            nextNode6 = new_node(tx1v, 8, ty1v, 8, tzmv, 7);
+
+            /*
             eq = ~(((1<<0) - currentNode)>>31);
-            //this should compute if the currentNode is valid.
-            valid_node = compute_valid_node(t1,t2,t3,txmt,tymt,tzmt);
             tmp_node = (unsigned char)(currentNode & valid_node & eq);
             cur_index[a[i]] += (1 & valid_node & eq);
             currentNode = (nextNode0 & eq) | (currentNode & ~eq);
+            */
+            __m256i tmp_av = _mm256_castpd_si256(_mm256_broadcast_sd((double*)&zero));
+            onesv = _mm256_castpd_si256(_mm256_broadcast_sd((double*)&all_ones));
+            __m256i neqv = _mm256_castpd_si256(_mm256_broadcast_sd((double*)node_vals));
+            neqv = _mm256_sub_epi64(neqv,currentNodev);
+            neqv = _mm256_srli_epi64(neqv, 32);
+            neqv = _mm256_srai_epi32(neqv, 31);
+            __m256i eqv = _mm256_xor_si256(neqv,onesv);
+            __m256i valid_nodev = compute_valid_node(t1v,t2v,t3v,txmv,tymv,tzmv);
+            __m256i tmp_nodev = _mm256_and_si256(valid_nodev,eqv);
+            tmp_nodev = _mm256_and_si256(tmp_nodev, currentNodev);
+            tmp_av = _mm256_or_si256(tmp_av,tmp_nodev);
+            tmpv = _mm256_and_si256(currentNodev,neqv);
+            currentNodev = _mm256_and_si256(nextNode0,eqv);
+            currentNodev = _mm256_or_si256(currentNodev,tmpv);
 
+            /*
             eq = ~(((1<<1) - currentNode)>>31);
-            valid_node = compute_valid_node(t1,t2,t6,txmt,tymt,tz1[i]);
+            valid_node = compute_valid_node(t1v,t2v,t6v,txmv,tymv,tz1v);
             tmp_node |= (unsigned char)(currentNode & valid_node & eq);
             cur_index[1u^a[i]] += (1 & valid_node & eq);
             currentNode = (nextNode1 & eq) | (currentNode & ~eq);
+            */
+            neqv = _mm256_castpd_si256(_mm256_broadcast_sd((double*)(node_vals+1)));
+            neqv = _mm256_sub_epi64(neqv,currentNodev);
+            neqv = _mm256_srli_epi64(neqv, 32);
+            neqv = _mm256_srai_epi32(neqv, 31);
+            eqv = _mm256_xor_si256(neqv,onesv);
+            valid_nodev = compute_valid_node(t1v,t2v,t6v,txmv,tymv,tz1v);
+            tmp_nodev = _mm256_and_si256(valid_nodev,eqv);
+            tmp_nodev = _mm256_and_si256(tmp_nodev, currentNodev);
+            tmp_av = _mm256_or_si256(tmp_av,tmp_nodev);
+            tmpv = _mm256_and_si256(currentNodev,neqv);
+            currentNodev = _mm256_and_si256(nextNode1,eqv);
+            currentNodev = _mm256_or_si256(currentNodev,tmpv);
 
+            /*
             eq = ~(((1<<2) - currentNode)>>31);
-            valid_node = compute_valid_node(t1,t5,t3,txmt,ty1[i],tzmt);
+            valid_node = compute_valid_node(t1v,t5v,t3v,txmv,ty1v,tzmv);
             tmp_node |= (unsigned char)(currentNode & valid_node & eq);
             cur_index[2u^a[i]] += (1 & valid_node & eq);
             currentNode = (nextNode2 & eq) | (currentNode & ~eq);
+            */
+            neqv = _mm256_castpd_si256(_mm256_broadcast_sd((double*)(node_vals+2)));
+            neqv = _mm256_sub_epi64(neqv,currentNodev);
+            neqv = _mm256_srli_epi64(neqv, 32);
+            neqv = _mm256_srai_epi32(neqv, 31);
+            eqv = _mm256_xor_si256(neqv,onesv);
+            valid_nodev = compute_valid_node(t1v,t5v,t3v,txmv,ty1v,tzmv);
+            tmp_nodev = _mm256_and_si256(valid_nodev,eqv);
+            tmp_nodev = _mm256_and_si256(tmp_nodev, currentNodev);
+            tmp_av = _mm256_or_si256(tmp_av,tmp_nodev);
+            tmpv = _mm256_and_si256(currentNodev,neqv);
+            currentNodev = _mm256_and_si256(nextNode2,eqv);
+            currentNodev = _mm256_or_si256(currentNodev,tmpv);
 
+            /*
             eq = ~(((1<<3) - currentNode)>>31);
-            valid_node = compute_valid_node(t1,t5,t6,txmt,ty1[i],tz1[i]);
+            valid_node = compute_valid_node(t1v,t5v,t6v,txm,ty1v,tz1v);
             tmp_node |= (unsigned char)(currentNode & valid_node & eq);
             cur_index[3u^a[i]] += (1 & valid_node & eq);
             currentNode = (nextNode3  & eq) | (currentNode & ~eq);
+            */
+            neqv = _mm256_castpd_si256(_mm256_broadcast_sd((double*)(node_vals+3)));
+            neqv = _mm256_sub_epi64(neqv,currentNodev);
+            neqv = _mm256_srli_epi64(neqv, 32);
+            neqv = _mm256_srai_epi32(neqv, 31);
+            eqv = _mm256_xor_si256(neqv,onesv);
+            valid_nodev = compute_valid_node(t1v,t5v,t6v,txmv,ty1v,tz1v);
+            tmp_nodev = _mm256_and_si256(valid_nodev,eqv);
+            tmp_nodev = _mm256_and_si256(tmp_nodev, currentNodev);
+            tmp_av = _mm256_or_si256(tmp_av,tmp_nodev);
+            tmpv = _mm256_and_si256(currentNodev,neqv);
+            currentNodev = _mm256_and_si256(nextNode3,eqv);
+            currentNodev = _mm256_or_si256(currentNodev,tmpv);
 
+            /*
             eq = ~(((1<<4) - currentNode)>>31);
-            valid_node = compute_valid_node(t4,t2,t3,tx1[i],tymt,tzmt);
+            valid_node = compute_valid_node(t4v,t2v,t3v,tx1v,tymv,tzmv);
             tmp_node |= (unsigned char)(currentNode & valid_node & eq);
             cur_index[4u^a[i]] += (1 & valid_node & eq);
             currentNode = (nextNode4 & eq) | (currentNode & ~eq);
+            */
+            neqv = _mm256_castpd_si256(_mm256_broadcast_sd((double*)(node_vals+4)));
+            neqv = _mm256_sub_epi64(neqv,currentNodev);
+            neqv = _mm256_srli_epi64(neqv, 32);
+            neqv = _mm256_srai_epi32(neqv, 31);
+            eqv = _mm256_xor_si256(neqv,onesv);
+            valid_nodev = compute_valid_node(t4v,t2v,t3v,tx1v,tymv,tzmv);
+            tmp_nodev = _mm256_and_si256(valid_nodev,eqv);
+            tmp_nodev = _mm256_and_si256(tmp_nodev, currentNodev);
+            tmp_av = _mm256_or_si256(tmp_av,tmp_nodev);
+            tmpv = _mm256_and_si256(currentNodev,neqv);
+            currentNodev = _mm256_and_si256(nextNode4,eqv);
+            currentNodev = _mm256_or_si256(currentNodev,tmpv);
 
+            /*
             eq = ~(((1<<5) - currentNode)>>31);
-            valid_node = compute_valid_node(t4,t2,t6,tx1[i],tymt,tz1[i]);
+            valid_node = compute_valid_node(t4v,t2v,t6v,tx1v,tymv,tz1v);
             tmp_node |= (unsigned char)(currentNode & valid_node & eq);
             cur_index[5u^a[i]] += (1 & valid_node & eq);
             currentNode = (nextNode5 & eq) | (currentNode & ~eq);
+            */
+            neqv = _mm256_castpd_si256(_mm256_broadcast_sd((double*)(node_vals+5)));
+            neqv = _mm256_sub_epi64(neqv,currentNodev);
+            neqv = _mm256_srli_epi64(neqv, 32);
+            neqv = _mm256_srai_epi32(neqv, 31);
+            eqv = _mm256_xor_si256(neqv,onesv);
+            valid_nodev = compute_valid_node(t4v,t2v,t6v,tx1v,tymv,tz1v);
+            tmp_nodev = _mm256_and_si256(valid_nodev,eqv);
+            tmp_nodev = _mm256_and_si256(tmp_nodev, currentNodev);
+            tmp_av = _mm256_or_si256(tmp_av,tmp_nodev);
+            tmpv = _mm256_and_si256(currentNodev,neqv);
+            currentNodev = _mm256_and_si256(nextNode5,eqv);
+            currentNodev = _mm256_or_si256(currentNodev,tmpv);
 
+           /*
             eq = ~(((1<<6) - currentNode)>>31);
-            valid_node = compute_valid_node(t4,t5,t3,tx1[i],ty1[i],tzmt);
+            valid_node = compute_valid_node(t4v,t5v,t3v,tx1v,ty1v,tzmv);
             tmp_node |= (unsigned char)(currentNode & valid_node & eq);
             cur_index[6u^a[i]] += (1 & valid_node & eq);
             currentNode = (nextNode6 & eq) | (currentNode & ~eq);
+            */
+            neqv = _mm256_castpd_si256(_mm256_broadcast_sd((double*)(node_vals+6)));
+            neqv = _mm256_sub_epi64(neqv,currentNodev);
+            neqv = _mm256_srli_epi64(neqv, 32);
+            neqv = _mm256_srai_epi32(neqv, 31);
+            eqv = _mm256_xor_si256(neqv,onesv);
+            valid_nodev = compute_valid_node(t4v,t5v,t3v,tx1v,ty1v,tzmv);
+            tmp_nodev = _mm256_and_si256(valid_nodev,eqv);
+            tmp_nodev = _mm256_and_si256(tmp_nodev, currentNodev);
+            tmp_av = _mm256_or_si256(tmp_av,tmp_nodev);
+            tmpv = _mm256_and_si256(currentNodev,neqv);
+            currentNodev = _mm256_and_si256(nextNode6,eqv);
+            currentNodev = _mm256_or_si256(currentNodev,tmpv);
 
+           /*
             eq = ~(((1<<7) - currentNode)>>31);
-            valid_node = compute_valid_node(t4,t5,t6,tx1[i],ty1[i],tz1[i]);
+            valid_node = compute_valid_node(t4v,t5v,t6v,tx1v,ty1v,tz1v);
             tmp_node |= (unsigned char)(currentNode & valid_node & eq);
             nodes[i] |= tmp_node;
             cur_index[7u^a[i]] += (1 & valid_node & eq);
-
+            */
+            neqv = _mm256_castpd_si256(_mm256_broadcast_sd((double*)(node_vals+7)));
+            neqv = _mm256_sub_epi64(neqv,currentNodev);
+            neqv = _mm256_srli_epi64(neqv, 32);
+            neqv = _mm256_srai_epi32(neqv, 31);
+            eqv = _mm256_xor_si256(neqv,onesv);
+            valid_nodev = compute_valid_node(t4v,t5v,t6v,tx1v,ty1v,tz1v);
+            tmp_nodev = _mm256_and_si256(valid_nodev,eqv);
+            tmp_nodev = _mm256_and_si256(tmp_nodev, currentNodev);
+            tmp_av = _mm256_or_si256(tmp_av,tmp_nodev);
+            
+            /*
             txm[i] = txmt;
             tym[i] = tymt;
             tzm[i] = tzmt;
+            */
+            _mm256_store_pd((txm+i), txmv);
+            _mm256_store_pd((tym+i), tymv);
+            _mm256_store_pd((tzm+i), tzmv);
     }
 
+    
     long long end = rdtsc();
     printf("proc_subtree cycles: %d\n", (end-start));
-
+    printf("%d\n",i);
+/*
     double* new_tx0[8] = {0};
     double* new_ty0[8] = {0};
     double* new_tz0[8] = {0};
@@ -541,17 +789,20 @@ void ray_parameter(Octree* tree, Ray* rays, int numRays) {
         createdRoot = TRUE;
     }
 
-    double* tx0 = (double*)malloc(numRays*sizeof(double));
-    double* ty0 = (double*)malloc(numRays*sizeof(double));
-    double* tz0 = (double*)malloc(numRays*sizeof(double));
-    double* tx1 = (double*)malloc(numRays*sizeof(double));
-    double* ty1 = (double*)malloc(numRays*sizeof(double));
-    double* tz1 = (double*)malloc(numRays*sizeof(double));
-    double* endpoints = (double*)malloc(numRays*sizeof(double));
+    double *tx0, *ty0, *tz0, *tx1, *ty1, *tz1, *endpoints;
+    posix_memalign((void**)&tx0,64,numRays*sizeof(double));
+    posix_memalign((void**)&ty0,64,numRays*sizeof(double));
+    posix_memalign((void**)&tz0,64,numRays*sizeof(double));
+    posix_memalign((void**)&tx1,64,numRays*sizeof(double));
+    posix_memalign((void**)&ty1,64,numRays*sizeof(double));
+    posix_memalign((void**)&tz1,64,numRays*sizeof(double));
+    posix_memalign((void**)&endpoints,64,numRays*sizeof(double));
     unsigned char* a = (unsigned char*)calloc(numRays, sizeof(unsigned char));
 
     for(int i = 0; i < numRays; i++){
         long long reflected, cur, tmp, sign_bit_if_negative;
+        long long reflected1, cur1, tmp1, sign_bit_if_negative1;
+        long long reflected2, cur2, tmp2, sign_bit_if_negative2;
         Ray* r = (rays+i);
 
         // sign_bit_if_neg = directionX & 0x8000000000000000;
@@ -562,34 +813,32 @@ void ray_parameter(Octree* tree, Ray* rays, int numRays) {
         // local_a = local_a | partial_a;
 
         cur = *((unsigned long long*)(&(r->direction.x)));
+        cur1 = *((unsigned long long*)(&(r->direction.y)));
+        cur2 = *((unsigned long long*)(&(r->direction.z)));
         sign_bit_if_negative = cur & 0x8000000000000000ull;
+        sign_bit_if_negative1 = cur1 & 0x8000000000000000ull;
+        sign_bit_if_negative2 = cur2 & 0x8000000000000000ull;
         tmp = *((unsigned long long*)(&(r->origin.x)));
+        tmp1 = *((unsigned long long*)(&(r->origin.y)));
+        tmp2 = *((unsigned long long*)(&(r->origin.z)));
         tmp ^= sign_bit_if_negative;
+        tmp1 ^= sign_bit_if_negative1;
+        tmp2 ^= sign_bit_if_negative2;
         r->origin.x = *((double*)(&tmp));
-        tmp = cur & 0x7fffffffffffffffull;
+        r->origin.y = *((double*)(&tmp1));
+        r->origin.z = *((double*)(&tmp2));
+        tmp = cur ^ sign_bit_if_negative;
+        tmp1 = cur1 ^ sign_bit_if_negative1;
+        tmp2 = cur2 ^ sign_bit_if_negative2;
         r->direction.x = *((double*)(&tmp));
+        r->direction.y = *((double*)(&tmp1));
+        r->direction.z = *((double*)(&tmp2));
         reflected = *((long long*)(&sign_bit_if_negative))>>63;
+        reflected1 = *((long long*)(&sign_bit_if_negative1))>>63;
+        reflected2 = *((long long*)(&sign_bit_if_negative2))>>63;
         a[i] |= (4u & reflected);
-
-        cur = *((unsigned long long*)(&(r->direction.y)));
-        sign_bit_if_negative = cur & 0x8000000000000000ull;
-        tmp = *((unsigned long long*)(&(r->origin.y)));
-        tmp ^= sign_bit_if_negative;
-        r->origin.y = *((double*)(&tmp));
-        tmp = cur & 0x7fffffffffffffffull;
-        r->direction.y = *((double*)(&tmp));
-        reflected = *((long long*)(&sign_bit_if_negative))>>63;
-        a[i] |= (2u & reflected);
-
-        cur = *((unsigned long long*)(&(r->direction.z)));
-        sign_bit_if_negative = cur & 0x8000000000000000ull;
-        tmp = *((unsigned long long*)(&(r->origin.z)));
-        tmp ^= sign_bit_if_negative;
-        r->origin.z = *((double*)(&tmp));
-        tmp = cur & 0x7fffffffffffffffull;
-        r->direction.z = *((double*)(&tmp));
-        reflected = *((long long*)(&sign_bit_if_negative))>>63;
-        a[i] |= (1u & reflected);
+        a[i] |= (2u & reflected1);
+        a[i] |= (1u & reflected2);
 
         // Improve IEEE double stability
         double rdxInverse = 1.0 / r->direction.x;

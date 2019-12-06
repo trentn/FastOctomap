@@ -26,11 +26,11 @@ int main(){
     Octree tree;
     initOctree(&tree);
     
-    unsigned long long start = rdtsc();
+    //unsigned long long start = rdtsc();
     insertPointCloud(&tree, endpoints, NUMPOINTS, &origin);
-    unsigned long long end = rdtsc();
+    //unsigned long long end = rdtsc();
 
-    printf("%llu\n", (end-start));
+    //printf("%llu\n", (end-start));
 
     fclose(fp);
 }

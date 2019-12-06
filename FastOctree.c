@@ -10,6 +10,8 @@
 
 #include "FastOctree.h"
 
+extern long long rdtsc();
+
 #define MAX(x,y) (((x) > (y)) ? (x) : (y))
 #define MIN(x,y) (((x) < (y)) ? (x) : (y))
 
@@ -244,24 +246,29 @@ int new_node(double txm, int x, double tym, int y, double tzm, int z)
 }
 
 
-void proc_subtree(double tx0, double ty0, double tz0,
+long long proc_subtree(double tx0, double ty0, double tz0,
                   double tx1, double ty1, double tz1,
                   unsigned int depth, int justCreated,
                   Node* n, Node *parent, unsigned char childIndex, unsigned char a, Ray* r)
 {
     double txm, tym, tzm;
     int currentNode;
+  
+    long long start, end;
+    start = rdtsc();
 
     if (any_is_less(r->t_end, r->t_end, r->t_end, tx0, ty0, tz0))
     {
         // The ray endpoint happened before at least one of the minimum t values of this subtree, meaning the ray
         // ends before this subtree. Therefore, we don't want to do anything to this subtree.
-        return;
+        end = rdtsc();
+        return (end-start);
     }
 
     if (tx1 < 0.0 || ty1 < 0.0 || tz1 < 0.0)
     {
-        return;
+        end = rdtsc();
+        return (end-start);
     }
     else if (n == NULL && parent != NULL)
     {
@@ -315,42 +322,42 @@ void proc_subtree(double tx0, double ty0, double tz0,
         switch (currentNode)
         {
             case 0:
-                proc_subtree(tx0, ty0, tz0, txm, tym, tzm, depth + 1, createdChild, n->children[a], n, a, a, r);
+                //proc_subtree(tx0, ty0, tz0, txm, tym, tzm, depth + 1, createdChild, n->children[a], n, a, a, r);
                 currentNode = new_node(txm, 4, tym, 2, tzm, 1);
                 break;
 
             case 1:
-                proc_subtree(tx0, ty0, tzm, txm, tym, tz1, depth + 1, createdChild, n->children[1u^a], n, 1u^a, a, r);
+                //proc_subtree(tx0, ty0, tzm, txm, tym, tz1, depth + 1, createdChild, n->children[1u^a], n, 1u^a, a, r);
                 currentNode = new_node(txm, 5, tym, 3, tz1, 8);
                 break;
 
             case 2:
-                proc_subtree(tx0, tym, tz0, txm, ty1, tzm, depth + 1, createdChild, n->children[2u^a], n, 2u^a, a, r);
+                //proc_subtree(tx0, tym, tz0, txm, ty1, tzm, depth + 1, createdChild, n->children[2u^a], n, 2u^a, a, r);
                 currentNode = new_node(txm, 6, ty1, 8, tzm, 3);
                 break;
 
             case 3:
-                proc_subtree(tx0, tym, tzm, txm, ty1, tz1, depth + 1, createdChild, n->children[3u^a], n, 3u^a, a, r);
+                //proc_subtree(tx0, tym, tzm, txm, ty1, tz1, depth + 1, createdChild, n->children[3u^a], n, 3u^a, a, r);
                 currentNode = new_node(txm, 7, ty1, 8, tz1, 8);
                 break;
 
             case 4:
-                proc_subtree(txm, ty0, tz0, tx1, tym, tzm, depth + 1, createdChild, n->children[4u^a], n, 4u^a, a, r);
+                //proc_subtree(txm, ty0, tz0, tx1, tym, tzm, depth + 1, createdChild, n->children[4u^a], n, 4u^a, a, r);
                 currentNode = new_node(tx1, 8, tym, 6, tzm, 5);
                 break;
 
             case 5:
-                proc_subtree(txm, ty0, tzm, tx1, tym, tz1, depth + 1, createdChild, n->children[5u^a], n, 5u^a, a, r);
+                //proc_subtree(txm, ty0, tzm, tx1, tym, tz1, depth + 1, createdChild, n->children[5u^a], n, 5u^a, a, r);
                 currentNode = new_node(tx1, 8, tym, 7, tz1, 8);
                 break;
 
             case 6:
-                proc_subtree(txm, tym, tz0, tx1, ty1, tzm, depth + 1, createdChild, n->children[6u^a], n, 6u^a, a, r);
+                //proc_subtree(txm, tym, tz0, tx1, ty1, tzm, depth + 1, createdChild, n->children[6u^a], n, 6u^a, a, r);
                 currentNode = new_node(tx1, 8, ty1, 8, tzm, 7);
                 break;
 
             case 7:
-                proc_subtree(txm, tym, tzm, tx1, ty1, tz1, depth + 1, createdChild, n->children[7u^a], n, 7u^a, a, r);
+                //proc_subtree(txm, tym, tzm, tx1, ty1, tz1, depth + 1, createdChild, n->children[7u^a], n, 7u^a, a, r);
                 currentNode = 8;
                 break;
 
@@ -359,11 +366,14 @@ void proc_subtree(double tx0, double ty0, double tz0,
         }
     } while (currentNode < 8);
 
-    n->logOdds = maxChildLogLikelihood(n);
+    end = rdtsc();
+    return (end-start);
+
+    //n->logOdds = maxChildLogLikelihood(n);
 }
 
 
-void ray_parameter(Octree* tree, Ray* r) {
+long long ray_parameter(Octree* tree, Ray* r) {
     int createdRoot = FALSE;
     if (tree->root == NULL) {
         // Using calloc instead of malloc initializes the memory to zero, which means that the the root's `children`
@@ -408,7 +418,7 @@ void ray_parameter(Octree* tree, Ray* r) {
 
     if (MAX(MAX(tx0, ty0), tz0) < MIN(MIN(tx1, ty1), tz1))
     {
-        proc_subtree(tx0, ty0, tz0, tx1, ty1, tz1, 0, createdRoot, tree->root, NULL, 0, a, r);
+        return proc_subtree(tx0, ty0, tz0, tx1, ty1, tz1, 0, createdRoot, tree->root, NULL, 0, a, r);
     }
     else
     {
@@ -436,6 +446,7 @@ void insertPointCloud(Octree* tree, Vector3d* points, size_t numPoints, Vector3d
         notInitialized = FALSE;
     }
 
+    long long cycles = 0;
     // for each point, create ray and call ray_parameter. After all points done, prune the tree
     for (size_t i = 0; i < numPoints; ++i)
     {
@@ -444,6 +455,8 @@ void insertPointCloud(Octree* tree, Vector3d* points, size_t numPoints, Vector3d
                 sensorOrigin->x, sensorOrigin->y, sensorOrigin->z,
                 points[i].x, points[i].y, points[i].z);
 
-        ray_parameter(tree, &currentRay);
+        cycles += ray_parameter(tree, &currentRay);
     }
+    printf("proc_subtrees cycle: %d\n", cycles);
+
 }
