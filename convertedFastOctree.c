@@ -337,50 +337,50 @@ void proc_subtree(double* tx0, double* ty0, double* tz0,
             //this should compute if the currentNode is valid.
             valid_node = compute_valid_node(t1,t2,t3,txmt,tymt,tzmt);
             tmp_node = (unsigned char)(currentNode & valid_node & eq);
-            cur_index[a[i]] += (1 & valid_node & eq);
+            //cur_index[a[i]] += (1 & valid_node & eq);
             currentNode = (nextNode0 & eq) | (currentNode & ~eq);
 
             eq = ~(((1<<1) - currentNode)>>31);
             valid_node = compute_valid_node(t1,t2,t6,txmt,tymt,tz1[i]);
             tmp_node |= (unsigned char)(currentNode & valid_node & eq);
-            cur_index[1u^a[i]] += (1 & valid_node & eq);
+            //cur_index[1u^a[i]] += (1 & valid_node & eq);
             currentNode = (nextNode1 & eq) | (currentNode & ~eq);
 
             eq = ~(((1<<2) - currentNode)>>31);
             valid_node = compute_valid_node(t1,t5,t3,txmt,ty1[i],tzmt);
             tmp_node |= (unsigned char)(currentNode & valid_node & eq);
-            cur_index[2u^a[i]] += (1 & valid_node & eq);
+            //cur_index[2u^a[i]] += (1 & valid_node & eq);
             currentNode = (nextNode2 & eq) | (currentNode & ~eq);
 
             eq = ~(((1<<3) - currentNode)>>31);
             valid_node = compute_valid_node(t1,t5,t6,txmt,ty1[i],tz1[i]);
             tmp_node |= (unsigned char)(currentNode & valid_node & eq);
-            cur_index[3u^a[i]] += (1 & valid_node & eq);
+            //cur_index[3u^a[i]] += (1 & valid_node & eq);
             currentNode = (nextNode3  & eq) | (currentNode & ~eq);
 
             eq = ~(((1<<4) - currentNode)>>31);
             valid_node = compute_valid_node(t4,t2,t3,tx1[i],tymt,tzmt);
             tmp_node |= (unsigned char)(currentNode & valid_node & eq);
-            cur_index[4u^a[i]] += (1 & valid_node & eq);
+            //cur_index[4u^a[i]] += (1 & valid_node & eq);
             currentNode = (nextNode4 & eq) | (currentNode & ~eq);
 
             eq = ~(((1<<5) - currentNode)>>31);
             valid_node = compute_valid_node(t4,t2,t6,tx1[i],tymt,tz1[i]);
             tmp_node |= (unsigned char)(currentNode & valid_node & eq);
-            cur_index[5u^a[i]] += (1 & valid_node & eq);
+            //cur_index[5u^a[i]] += (1 & valid_node & eq);
             currentNode = (nextNode5 & eq) | (currentNode & ~eq);
 
             eq = ~(((1<<6) - currentNode)>>31);
             valid_node = compute_valid_node(t4,t5,t3,tx1[i],ty1[i],tzmt);
             tmp_node |= (unsigned char)(currentNode & valid_node & eq);
-            cur_index[6u^a[i]] += (1 & valid_node & eq);
+            //cur_index[6u^a[i]] += (1 & valid_node & eq);
             currentNode = (nextNode6 & eq) | (currentNode & ~eq);
 
             eq = ~(((1<<7) - currentNode)>>31);
             valid_node = compute_valid_node(t4,t5,t6,tx1[i],ty1[i],tz1[i]);
             tmp_node |= (unsigned char)(currentNode & valid_node & eq);
             nodes[i] |= tmp_node;
-            cur_index[7u^a[i]] += (1 & valid_node & eq);
+            //cur_index[7u^a[i]] += (1 & valid_node & eq);
 
             txm[i] = txmt;
             tym[i] = tymt;
