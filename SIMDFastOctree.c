@@ -21,6 +21,8 @@ extern long long rdtsc();
 #define TRUE 1
 #define FALSE 0
 
+
+//#define _mm256_srli_epi64(vec, offset) asm volatile("vpsrlq %[rvec], %[rvec], %[roff]\n" :[rvec] "+r"(vec): [roff] "r"(offset))
 //#define DEBUG_TRACE_FUNCTION_CALLS 1
 //#define DEBUG_RAY_PARAMETER 1
 //#define DEBUG_PROC_SUBTREE 1
@@ -207,48 +209,9 @@ const long long one = 1;
 const long long node_vals[8] = {0x1,0x2,0x4,0x8,0x10,0x20,0x40,0x80};
 const long long zero = 0;
 
-static inline __m256i new_node(__m256d txmv, int x, __m256d tymv, int y, __m256d tzmv, int z)
-{
-    long x_shift = (63-x);
-    long y_shift = (63-y);
-    long z_shift = (63-z);
+#include "new_node.c"
 
-    __m256d tmp1v = _mm256_sub_pd(txmv, tymv);
-    __m256d tmp2v = _mm256_sub_pd(txmv, tzmv);
-    __m256d tmp3v = _mm256_sub_pd(tymv, tzmv);
-
-    __m256d signbitv = _mm256_broadcast_sd((double*)&signbit);
-    __m128 xshv = _mm_broadcast_ss((float*)&x_shift);
-    __m128 yshv = _mm_broadcast_ss((float*)&y_shift);
-    __m128 zshv = _mm_broadcast_ss((float*)&z_shift);
-
-    //X
-    //currentNode |= (unsigned long long)(*((unsigned long long*)(&tmp1)) & *((unsigned long long*)(&tmp2)) & 0x8000000000000000)>>;
-    __m256d tmpv = _mm256_and_pd(tmp1v,tmp2v);
-    tmpv = _mm256_and_pd(tmpv,signbitv);
-    __m256i currentNodev = _mm256_srl_epi64(_mm256_castpd_si256(tmpv),_mm_castps_si128(xshv));
-
-    
-    //Y
-    //currentNode |= (unsigned long long)(~*((unsigned long long*)(&tmp1)) & *((unsigned long long*)(&tmp3)) & 0x8000000000000000)>>;
-    tmpv = _mm256_andnot_pd(tmp1v,tmp3v);
-    tmpv = _mm256_and_pd(tmpv,signbitv);
-    tmpv = _mm256_castsi256_pd(_mm256_srl_epi64(_mm256_castpd_si256(tmpv),_mm_castps_si128(yshv)));
-    currentNodev = _mm256_or_si256(currentNodev, _mm256_castpd_si256(tmpv));
-
-    
-    //Z
-    //currentNode |= (unsigned long long)( ~*(unsigned long long*)(&tmp3) & ~*(unsigned long long*)(&tmp2) & 0x8000000000000000 )>>;
-    __m256i onesv = _mm256_castpd_si256(_mm256_broadcast_sd((double*)&all_ones));
-    tmp2v = _mm256_castsi256_pd(_mm256_xor_si256(_mm256_castpd_si256(tmp2v),onesv));
-    tmpv = _mm256_andnot_pd(tmp3v,tmp2v);
-    tmpv = _mm256_and_pd(tmpv,signbitv);
-    tmpv = _mm256_castsi256_pd(_mm256_srl_epi64(_mm256_castpd_si256(tmpv),_mm_castps_si128(zshv)));
-    currentNodev = _mm256_or_si256(currentNodev, _mm256_castpd_si256(tmpv));
-
-    return currentNodev;
-}
-
+/*
 static inline __m256i compute_valid_node(__m256d t1v,__m256d t2v,__m256d t3v, __m256d tx1v, __m256d ty1v, __m256d tz1v){
     //long shift = 63;
     //__m128 shiftv = _mm_broadcast_ss((float*)&shift);
@@ -274,8 +237,8 @@ static inline __m256i compute_valid_node(__m256d t1v,__m256d t2v,__m256d t3v, __
                         & *((unsigned long long*)(&t3))
                         & ~*((unsigned long long*)(&tx1))
                         & ~*((unsigned long long*)(&ty1))
-                        & ~*((unsigned long long*)(&tz1)))>>63;*/
-}
+                        & ~*((unsigned long long*)(&tz1)))>>63;
+}*/
 
 double** proc_subtree(double* tx0, double* ty0, double* tz0,
                   double* tx1, double* ty1, double* tz1,
@@ -322,7 +285,10 @@ double** proc_subtree(double* tx0, double* ty0, double* tz0,
     posix_memalign((void**)&tym,64,numRays*sizeof(double));
     posix_memalign((void**)&tzm,64,numRays*sizeof(double));
 
-    unsigned char* nodes = (unsigned char*)calloc(numRays,sizeof(unsigned char));
+    long long* nodes;
+    posix_memalign((void**)&nodes,64,numRays*sizeof(long long));
+
+    // unsigned char* nodes = (unsigned char*)calloc(numRays,sizeof(unsigned char));
     int cur_index[8] = {0};
 
     long long start = rdtsc();
@@ -452,19 +418,19 @@ double** proc_subtree(double* tx0, double* ty0, double* tz0,
 
 
             __m256d endpointv = _mm256_load_pd(endpoint+i);
-            nextNode0 = new_node(txmv, 4, tymv, 2, tzmv, 1);
+            nextNode0 = new_node0(txmv, tymv, tzmv);
             __m256d t1v = _mm256_sub_pd(tx0v, endpointv);
-            nextNode1 = new_node(txmv, 5, tymv, 3, tz1v, 8);
+            nextNode1 = new_node1(txmv, tymv, tz1v);
             __m256d t2v = _mm256_sub_pd(ty0v, endpointv);
-            nextNode2 = new_node(txmv, 6, ty1v, 8, tzmv, 3);       
+            nextNode2 = new_node2(txmv, ty1v, tzmv);       
             __m256d t3v = _mm256_sub_pd(tz0v, endpointv);
-            nextNode3 = new_node(txmv, 7, ty1v, 8, tz1v, 8);
+            nextNode3 = new_node3(txmv, ty1v, tz1v);
             __m256d t4v = _mm256_sub_pd(txmv, endpointv);
-            nextNode4 = new_node(tx1v, 8, tymv, 6, tzmv, 5);
+            nextNode4 = new_node4(tx1v, tymv, tzmv);
             __m256d t5v = _mm256_sub_pd(tymv, endpointv);
-            nextNode5 = new_node(tx1v, 8, tymv, 7, tz1v, 8);
+            nextNode5 = new_node5(tx1v, tymv, tz1v);
             __m256d t6v = _mm256_sub_pd(tzmv, endpointv);
-            nextNode6 = new_node(tx1v, 8, ty1v, 8, tzmv, 7);
+            nextNode6 = new_node6(tx1v, ty1v, tzmv);
 
             /*
             eq = ~(((1<<0) - currentNode)>>31);
@@ -703,7 +669,8 @@ double** proc_subtree(double* tx0, double* ty0, double* tz0,
             tmp_nodev = _mm256_and_si256(valid_nodev,eqv);
             tmp_nodev = _mm256_and_si256(tmp_nodev, currentNodev);
             tmp_av = _mm256_or_si256(tmp_av,tmp_nodev);
-            
+
+            _mm256_store_si256((__m256i*)(nodes+i), tmp_av);
             /*
             txm[i] = txmt;
             tym[i] = tymt;
