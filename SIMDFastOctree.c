@@ -240,7 +240,7 @@ static inline __m256i compute_valid_node(__m256d t1v,__m256d t2v,__m256d t3v, __
                         & ~*((unsigned long long*)(&tz1)))>>63;
 }*/
 
-double** proc_subtree(double* tx0, double* ty0, double* tz0,
+void proc_subtree(double* tx0, double* ty0, double* tz0,
                   double* tx1, double* ty1, double* tz1,
                   int numRays, unsigned int depth,
                   Node* n, unsigned char* a, double* endpoint) {
@@ -290,8 +290,6 @@ double** proc_subtree(double* tx0, double* ty0, double* tz0,
 
     // unsigned char* nodes = (unsigned char*)calloc(numRays,sizeof(unsigned char));
     int cur_index[8] = {0};
-
-    long long start = rdtsc();
 
     int diff = numRays%4;
     int i;
@@ -681,19 +679,14 @@ double** proc_subtree(double* tx0, double* ty0, double* tz0,
             _mm256_store_pd((tzm+i), tzmv);
     }
 
-    
-    long long end = rdtsc();
-    printf("proc_subtree cycles: %d\n", (end-start));
-    printf("%d\n",i);
+    // //so the loop above doesn't get optimized away
+    // double** tms = (double**)malloc(3*sizeof(double**));
 
-    //so the loop above doesn't get optimized away
-    double** tms = (double**)malloc(3*sizeof(double**));
+    // tms[0] = txm;
+    // tms[1] = tym;
+    // tms[2] = tzm;
 
-    tms[0] = txm;
-    tms[1] = tym;
-    tms[2] = tzm;
-
-    return tms;
+    // return tms;
 
 /*
     double* new_tx0[8] = {0};
@@ -912,8 +905,13 @@ void ray_parameter(Octree* tree, Ray* rays, int numRays) {
 
     free(rays);
 
+    long long start = rdtsc();
+
     // for now assume our point cloud origin and all points exist within the actree bounds
-    double** mids = proc_subtree(tx0, ty0, tz0, tx1, ty1, tz1, numRays, 0, tree->root, a, endpoints);
+    proc_subtree(tx0, ty0, tz0, tx1, ty1, tz1, numRays, 0, tree->root, a, endpoints);
+
+    long long end = rdtsc();
+    printf("proc_subtree cycles: %d\n", (end-start)/(numRays-(numRays%4)));
         
 }
 

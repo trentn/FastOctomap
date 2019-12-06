@@ -27,7 +27,7 @@ static inline __m256i new_node0(__m256d txmv, __m256d tymv, __m256d tzmv)
     tmp2v = _mm256_castsi256_pd(_mm256_xor_si256(_mm256_castpd_si256(tmp2v),onesv));
     tmpv = _mm256_andnot_pd(tmp3v,tmp2v);
     tmpv = _mm256_and_pd(tmpv,signbitv);
-    tmpv = _mm256_castsi256_pd(_mm256_srli_epi64(_mm256_castpd_si256(tmpv),2));
+    tmpv = _mm256_castsi256_pd(_mm256_srli_epi64(_mm256_castpd_si256(tmpv),62));
     currentNodev = _mm256_or_si256(currentNodev, _mm256_castpd_si256(tmpv));
 
     return currentNodev;

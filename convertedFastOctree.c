@@ -279,8 +279,6 @@ void proc_subtree(double* tx0, double* ty0, double* tz0,
     unsigned char* nodes = (unsigned char*)calloc(numRays,sizeof(unsigned char));
     int cur_index[8] = {0};
 
-    long long start = rdtsc();
-
     for(int i = 0; i < numRays; i++){
 
 
@@ -389,9 +387,8 @@ void proc_subtree(double* tx0, double* ty0, double* tz0,
             tzm[i] = tzmt;
     }
 
-    long long end = rdtsc();
-    printf("proc_subtree cycles: %d\n", (end-start));
-
+    
+/*
     double* new_tx0[8] = {0};
     double* new_ty0[8] = {0};
     double* new_tz0[8] = {0};
@@ -608,8 +605,12 @@ void ray_parameter(Octree* tree, Ray* rays, int numRays) {
     free(rays);
 
     // for now assume our point cloud origin and all points exist within the actree bounds
+    long long start = rdtsc();
+
+
     proc_subtree(tx0, ty0, tz0, tx1, ty1, tz1, numRays, 0, tree->root, a, endpoints);
-        
+    long long end = rdtsc();
+    printf("proc_subtree cycles per point: %d\n", (end-start)/numRays);    
 }
 
 void insertPointCloud(Octree* tree, Vector3d* points, size_t numPoints, Vector3d* sensorOrigin)
