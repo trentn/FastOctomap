@@ -369,22 +369,25 @@ double** proc_subtree(double* tx0, double* ty0, double* tz0,
             */
 
             __m256d tmp1v = _mm256_sub_pd(ty0v, tx0v);
+           __m256i signbitv = _mm256_castpd_si256(_mm256_broadcast_sd((double*)&signbit));
             __m256d tmp2v = _mm256_sub_pd(tz0v, tx0v);
+           __m256i onesv = _mm256_castpd_si256(_mm256_broadcast_sd((double*)&all_ones));
             __m256d tmp3v = _mm256_sub_pd(tymv, tx0v);
+            __m256i tmpv = _mm256_and_si256(_mm256_castpd_si256(tmp1v),_mm256_castpd_si256(tmp2v));
             __m256d tmp4v = _mm256_sub_pd(tzmv, tx0v);
+            tmpv = _mm256_and_si256(tmpv,_mm256_castpd_si256(tmp3v));
 
             /*
             currentNode |= (int)((unsigned long long)(*((unsigned long long*)(&tmp1)) & *((unsigned long long*)(&tmp2)) & *((unsigned long long*)(&tmp3)) & 0x8000000000000000)>>62);
             currentNode |= (int)((unsigned long long)(*((unsigned long long*)(&tmp1)) & *((unsigned long long*)(&tmp2)) & *((unsigned long long*)(&tmp4)) & 0x8000000000000000)>>63);
             */
-           __m256i signbitv = _mm256_castpd_si256(_mm256_broadcast_sd((double*)&signbit));
-           __m256i onesv = _mm256_castpd_si256(_mm256_broadcast_sd((double*)&all_ones));
 
-            __m256i tmpv = _mm256_and_si256(_mm256_castpd_si256(tmp1v),_mm256_castpd_si256(tmp2v));
-            tmpv = _mm256_and_si256(tmpv,_mm256_castpd_si256(tmp3v));
             __m256i currentNodev = _mm256_and_si256(tmpv, signbitv);
+            __m256d tmp5v = _mm256_sub_pd(tz0v, ty0v);
             tmpv = _mm256_and_si256(_mm256_castpd_si256(tmp1v),_mm256_castpd_si256(tmp2v));
+            tmp3v = _mm256_sub_pd(txmv, ty0v);
             tmpv = _mm256_and_si256(tmpv,_mm256_castpd_si256(tmp4v));
+            tmp4v = _mm256_sub_pd(tzmv, ty0v);
             tmpv = _mm256_and_si256(tmpv, signbitv);
             currentNodev = _mm256_or_si256(currentNodev,tmpv);
             
@@ -395,9 +398,6 @@ double** proc_subtree(double* tx0, double* ty0, double* tz0,
             tmp4 = tzmt - ty0[i];
             */
 
-            __m256d tmp5v = _mm256_sub_pd(tz0v, ty0v);
-            tmp3v = _mm256_sub_pd(txmv, ty0v);
-            tmp4v = _mm256_sub_pd(tzmv, ty0v);
             
             /*
             currentNode |= (int)((unsigned long long)(~*((unsigned long long*)(&tmp1)) & *((unsigned long long*)(&tmp5)) & *((unsigned long long*)(&tmp3)) & 0x8000000000000000)>>61);
@@ -405,10 +405,12 @@ double** proc_subtree(double* tx0, double* ty0, double* tz0,
             */
             tmpv = _mm256_andnot_si256(_mm256_castpd_si256(tmp1v),_mm256_castpd_si256(tmp5v));
             tmpv = _mm256_and_si256(tmpv,_mm256_castpd_si256(tmp3v));
+            tmp3v = _mm256_sub_pd(txmv, tz0v);
             tmpv = _mm256_and_si256(tmpv, signbitv);
             currentNodev = _mm256_or_si256(currentNodev,tmpv);
             tmpv = _mm256_andnot_si256(_mm256_castpd_si256(tmp1v),_mm256_castpd_si256(tmp5v));
             tmpv = _mm256_and_si256(tmpv,_mm256_castpd_si256(tmp4v));
+            tmp4v = _mm256_sub_pd(tymv, tz0v);
             tmpv = _mm256_and_si256(tmpv, signbitv);
             currentNodev = _mm256_or_si256(currentNodev,tmpv);
 
@@ -417,8 +419,6 @@ double** proc_subtree(double* tx0, double* ty0, double* tz0,
             tmp4 = tymt - tz0[i];
             */
 
-            tmp3v = _mm256_sub_pd(txmv, tz0v);
-            tmp4v = _mm256_sub_pd(tymv, tz0v);
 
             /*
             currentNode |= (int)((unsigned long long)(~*((unsigned long long*)(&tmp2)) & ~*((unsigned long long*)(&tmp5)) & *((unsigned long long*)(&tmp3)) & 0x8000000000000000)>>61);
@@ -448,23 +448,22 @@ double** proc_subtree(double* tx0, double* ty0, double* tz0,
             t5 = tymt - endpoint[i];
             t6 = tzmt - endpoint[i];
             */
+            __m256i nextNode0, nextNode1, nextNode2, nextNode3, nextNode4, nextNode5, nextNode6;
+
 
             __m256d endpointv = _mm256_load_pd(endpoint+i);
-            __m256d t1v = _mm256_sub_pd(tx0v, endpointv);
-            __m256d t2v = _mm256_sub_pd(ty0v, endpointv);
-            __m256d t3v = _mm256_sub_pd(tz0v, endpointv);
-            __m256d t4v = _mm256_sub_pd(txmv, endpointv);
-            __m256d t5v = _mm256_sub_pd(tymv, endpointv);
-            __m256d t6v = _mm256_sub_pd(tzmv, endpointv);
-
-            
-            __m256i nextNode0, nextNode1, nextNode2, nextNode3, nextNode4, nextNode5, nextNode6;
             nextNode0 = new_node(txmv, 4, tymv, 2, tzmv, 1);
+            __m256d t1v = _mm256_sub_pd(tx0v, endpointv);
             nextNode1 = new_node(txmv, 5, tymv, 3, tz1v, 8);
+            __m256d t2v = _mm256_sub_pd(ty0v, endpointv);
             nextNode2 = new_node(txmv, 6, ty1v, 8, tzmv, 3);       
+            __m256d t3v = _mm256_sub_pd(tz0v, endpointv);
             nextNode3 = new_node(txmv, 7, ty1v, 8, tz1v, 8);
+            __m256d t4v = _mm256_sub_pd(txmv, endpointv);
             nextNode4 = new_node(tx1v, 8, tymv, 6, tzmv, 5);
+            __m256d t5v = _mm256_sub_pd(tymv, endpointv);
             nextNode5 = new_node(tx1v, 8, tymv, 7, tz1v, 8);
+            __m256d t6v = _mm256_sub_pd(tzmv, endpointv);
             nextNode6 = new_node(tx1v, 8, ty1v, 8, tzmv, 7);
 
             /*
@@ -474,17 +473,27 @@ double** proc_subtree(double* tx0, double* ty0, double* tz0,
             currentNode = (nextNode0 & eq) | (currentNode & ~eq);
             */
             __m256i tmp_av = _mm256_castpd_si256(_mm256_broadcast_sd((double*)&zero));
+            __m256d tmp = _mm256_and_pd(t1v,t2v);
             onesv = _mm256_castpd_si256(_mm256_broadcast_sd((double*)&all_ones));
             __m256i neqv = _mm256_castpd_si256(_mm256_broadcast_sd((double*)node_vals));
+            __m256d t_tx1v = _mm256_xor_pd(txmv,_mm256_castsi256_pd(onesv));
             neqv = _mm256_sub_epi64(neqv,currentNodev);
+            tmp = _mm256_and_pd(tmp,t3v);
+            __m256d t_ty1v  = _mm256_xor_pd(tymv,_mm256_castsi256_pd(onesv));
             neqv = _mm256_srli_epi64(neqv, 32);
+            tmp = _mm256_and_pd(tmp,t_tx1v);
             neqv = _mm256_srai_epi32(neqv, 31);
+            __m256d t_tz1v = _mm256_xor_pd(tzmv,_mm256_castsi256_pd(onesv));
+            tmp = _mm256_and_pd(tmp,t_ty1v);
             __m256i eqv = _mm256_xor_si256(neqv,onesv);
-            __m256i valid_nodev = compute_valid_node(t1v,t2v,t3v,txmv,tymv,tzmv);
+            tmp = _mm256_and_pd(tmp,t_tz1v);
+            tmpv = _mm256_and_si256(currentNodev,neqv);
+            tmp = _mm256_castsi256_pd(_mm256_srli_epi64(_mm256_castpd_si256(tmp), 32));
+            __m256i valid_nodev = _mm256_srai_epi32(_mm256_castpd_si256(tmp), 31);
+            //__m256i valid_nodev = compute_valid_node(t1v,t2v,t3v,txmv,tymv,tzmv);
             __m256i tmp_nodev = _mm256_and_si256(valid_nodev,eqv);
             tmp_nodev = _mm256_and_si256(tmp_nodev, currentNodev);
             tmp_av = _mm256_or_si256(tmp_av,tmp_nodev);
-            tmpv = _mm256_and_si256(currentNodev,neqv);
             currentNodev = _mm256_and_si256(nextNode0,eqv);
             currentNodev = _mm256_or_si256(currentNodev,tmpv);
 
@@ -496,15 +505,25 @@ double** proc_subtree(double* tx0, double* ty0, double* tz0,
             currentNode = (nextNode1 & eq) | (currentNode & ~eq);
             */
             neqv = _mm256_castpd_si256(_mm256_broadcast_sd((double*)(node_vals+1)));
+            tmp = _mm256_and_pd(t1v,t2v);
             neqv = _mm256_sub_epi64(neqv,currentNodev);
+            t_tx1v = _mm256_xor_pd(txmv,_mm256_castsi256_pd(onesv));
+            tmp = _mm256_and_pd(tmp,t6v);
             neqv = _mm256_srli_epi64(neqv, 32);
+            t_ty1v  = _mm256_xor_pd(tymv,_mm256_castsi256_pd(onesv));
+            tmp = _mm256_and_pd(tmp,t_tx1v);
             neqv = _mm256_srai_epi32(neqv, 31);
+            t_tz1v = _mm256_xor_pd(tz1v,_mm256_castsi256_pd(onesv));
+            tmp = _mm256_and_pd(tmp,t_ty1v);
             eqv = _mm256_xor_si256(neqv,onesv);
-            valid_nodev = compute_valid_node(t1v,t2v,t6v,txmv,tymv,tz1v);
+            tmpv = _mm256_and_si256(currentNodev,neqv);
+            tmp = _mm256_and_pd(tmp,t_tz1v);
+            tmp = _mm256_castsi256_pd(_mm256_srli_epi64(_mm256_castpd_si256(tmp), 32));
+            valid_nodev = _mm256_srai_epi32(_mm256_castpd_si256(tmp), 31);
+            //valid_nodev = compute_valid_node(t1v,t2v,t6v,txmv,tymv,tz1v);
             tmp_nodev = _mm256_and_si256(valid_nodev,eqv);
             tmp_nodev = _mm256_and_si256(tmp_nodev, currentNodev);
             tmp_av = _mm256_or_si256(tmp_av,tmp_nodev);
-            tmpv = _mm256_and_si256(currentNodev,neqv);
             currentNodev = _mm256_and_si256(nextNode1,eqv);
             currentNodev = _mm256_or_si256(currentNodev,tmpv);
 
@@ -516,15 +535,25 @@ double** proc_subtree(double* tx0, double* ty0, double* tz0,
             currentNode = (nextNode2 & eq) | (currentNode & ~eq);
             */
             neqv = _mm256_castpd_si256(_mm256_broadcast_sd((double*)(node_vals+2)));
+            tmp = _mm256_and_pd(t1v,t5v);
             neqv = _mm256_sub_epi64(neqv,currentNodev);
+            t_tx1v = _mm256_xor_pd(txmv,_mm256_castsi256_pd(onesv));
+            tmp = _mm256_and_pd(tmp,t3v);
             neqv = _mm256_srli_epi64(neqv, 32);
+            t_ty1v  = _mm256_xor_pd(ty1v,_mm256_castsi256_pd(onesv));
+            tmp = _mm256_and_pd(tmp,t_tx1v);
             neqv = _mm256_srai_epi32(neqv, 31);
+            t_tz1v = _mm256_xor_pd(tzmv,_mm256_castsi256_pd(onesv));
+            tmp = _mm256_and_pd(tmp,t_ty1v);
             eqv = _mm256_xor_si256(neqv,onesv);
-            valid_nodev = compute_valid_node(t1v,t5v,t3v,txmv,ty1v,tzmv);
+            tmpv = _mm256_and_si256(currentNodev,neqv);
+            tmp = _mm256_and_pd(tmp,t_tz1v);
+            tmp = _mm256_castsi256_pd(_mm256_srli_epi64(_mm256_castpd_si256(tmp), 32));
+            valid_nodev = _mm256_srai_epi32(_mm256_castpd_si256(tmp), 31);
+            //valid_nodev = compute_valid_node(t1v,t5v,t3v,txmv,ty1v,tzmv);
             tmp_nodev = _mm256_and_si256(valid_nodev,eqv);
             tmp_nodev = _mm256_and_si256(tmp_nodev, currentNodev);
             tmp_av = _mm256_or_si256(tmp_av,tmp_nodev);
-            tmpv = _mm256_and_si256(currentNodev,neqv);
             currentNodev = _mm256_and_si256(nextNode2,eqv);
             currentNodev = _mm256_or_si256(currentNodev,tmpv);
 
@@ -536,15 +565,25 @@ double** proc_subtree(double* tx0, double* ty0, double* tz0,
             currentNode = (nextNode3  & eq) | (currentNode & ~eq);
             */
             neqv = _mm256_castpd_si256(_mm256_broadcast_sd((double*)(node_vals+3)));
+            tmp = _mm256_and_pd(t1v,t5v);
             neqv = _mm256_sub_epi64(neqv,currentNodev);
+            t_tx1v = _mm256_xor_pd(txmv,_mm256_castsi256_pd(onesv));
+            tmp = _mm256_and_pd(tmp,t6v);
             neqv = _mm256_srli_epi64(neqv, 32);
+            t_ty1v  = _mm256_xor_pd(ty1v,_mm256_castsi256_pd(onesv));
+            tmp = _mm256_and_pd(tmp,t_tx1v);
             neqv = _mm256_srai_epi32(neqv, 31);
+            t_tz1v = _mm256_xor_pd(tz1v,_mm256_castsi256_pd(onesv));
+            tmp = _mm256_and_pd(tmp,t_ty1v);
             eqv = _mm256_xor_si256(neqv,onesv);
-            valid_nodev = compute_valid_node(t1v,t5v,t6v,txmv,ty1v,tz1v);
+            tmpv = _mm256_and_si256(currentNodev,neqv);
+            tmp = _mm256_and_pd(tmp,t_tz1v);
+            tmp = _mm256_castsi256_pd(_mm256_srli_epi64(_mm256_castpd_si256(tmp), 32));
+            valid_nodev = _mm256_srai_epi32(_mm256_castpd_si256(tmp), 31);
+            //valid_nodev = compute_valid_node(t1v,t5v,t6v,txmv,ty1v,tz1v);
             tmp_nodev = _mm256_and_si256(valid_nodev,eqv);
             tmp_nodev = _mm256_and_si256(tmp_nodev, currentNodev);
             tmp_av = _mm256_or_si256(tmp_av,tmp_nodev);
-            tmpv = _mm256_and_si256(currentNodev,neqv);
             currentNodev = _mm256_and_si256(nextNode3,eqv);
             currentNodev = _mm256_or_si256(currentNodev,tmpv);
 
@@ -556,15 +595,25 @@ double** proc_subtree(double* tx0, double* ty0, double* tz0,
             currentNode = (nextNode4 & eq) | (currentNode & ~eq);
             */
             neqv = _mm256_castpd_si256(_mm256_broadcast_sd((double*)(node_vals+4)));
+            tmp = _mm256_and_pd(t4v,t2v);
             neqv = _mm256_sub_epi64(neqv,currentNodev);
+            t_tx1v = _mm256_xor_pd(tx1v,_mm256_castsi256_pd(onesv));
+            tmp = _mm256_and_pd(tmp,t3v);
             neqv = _mm256_srli_epi64(neqv, 32);
+            t_ty1v  = _mm256_xor_pd(tymv,_mm256_castsi256_pd(onesv));
+            tmp = _mm256_and_pd(tmp,t_tx1v);
             neqv = _mm256_srai_epi32(neqv, 31);
+            t_tz1v = _mm256_xor_pd(tzmv,_mm256_castsi256_pd(onesv));
+            tmp = _mm256_and_pd(tmp,t_ty1v);
             eqv = _mm256_xor_si256(neqv,onesv);
-            valid_nodev = compute_valid_node(t4v,t2v,t3v,tx1v,tymv,tzmv);
+            tmpv = _mm256_and_si256(currentNodev,neqv);
+            tmp = _mm256_and_pd(tmp,t_tz1v);
+            tmp = _mm256_castsi256_pd(_mm256_srli_epi64(_mm256_castpd_si256(tmp), 32));
+            valid_nodev = _mm256_srai_epi32(_mm256_castpd_si256(tmp), 31);
+            //valid_nodev = compute_valid_node(t4v,t2v,t3v,tx1v,tymv,tzmv);
             tmp_nodev = _mm256_and_si256(valid_nodev,eqv);
             tmp_nodev = _mm256_and_si256(tmp_nodev, currentNodev);
             tmp_av = _mm256_or_si256(tmp_av,tmp_nodev);
-            tmpv = _mm256_and_si256(currentNodev,neqv);
             currentNodev = _mm256_and_si256(nextNode4,eqv);
             currentNodev = _mm256_or_si256(currentNodev,tmpv);
 
@@ -576,15 +625,25 @@ double** proc_subtree(double* tx0, double* ty0, double* tz0,
             currentNode = (nextNode5 & eq) | (currentNode & ~eq);
             */
             neqv = _mm256_castpd_si256(_mm256_broadcast_sd((double*)(node_vals+5)));
+            tmp = _mm256_and_pd(t4v,t2v);
             neqv = _mm256_sub_epi64(neqv,currentNodev);
+            t_tx1v = _mm256_xor_pd(tx1v,_mm256_castsi256_pd(onesv));
+            tmp = _mm256_and_pd(tmp,t6v);
             neqv = _mm256_srli_epi64(neqv, 32);
+            t_ty1v  = _mm256_xor_pd(tymv,_mm256_castsi256_pd(onesv));
+            tmp = _mm256_and_pd(tmp,t_tx1v);
             neqv = _mm256_srai_epi32(neqv, 31);
+            t_tz1v = _mm256_xor_pd(tz1v,_mm256_castsi256_pd(onesv));
+            tmp = _mm256_and_pd(tmp,t_ty1v);
             eqv = _mm256_xor_si256(neqv,onesv);
-            valid_nodev = compute_valid_node(t4v,t2v,t6v,tx1v,tymv,tz1v);
+            tmpv = _mm256_and_si256(currentNodev,neqv);
+            tmp = _mm256_and_pd(tmp,t_tz1v);
+            tmp = _mm256_castsi256_pd(_mm256_srli_epi64(_mm256_castpd_si256(tmp), 32));
+            valid_nodev = _mm256_srai_epi32(_mm256_castpd_si256(tmp), 31);
+            //valid_nodev = compute_valid_node(t4v,t2v,t6v,tx1v,tymv,tz1v);
             tmp_nodev = _mm256_and_si256(valid_nodev,eqv);
             tmp_nodev = _mm256_and_si256(tmp_nodev, currentNodev);
             tmp_av = _mm256_or_si256(tmp_av,tmp_nodev);
-            tmpv = _mm256_and_si256(currentNodev,neqv);
             currentNodev = _mm256_and_si256(nextNode5,eqv);
             currentNodev = _mm256_or_si256(currentNodev,tmpv);
 
@@ -596,15 +655,25 @@ double** proc_subtree(double* tx0, double* ty0, double* tz0,
             currentNode = (nextNode6 & eq) | (currentNode & ~eq);
             */
             neqv = _mm256_castpd_si256(_mm256_broadcast_sd((double*)(node_vals+6)));
+            tmp = _mm256_and_pd(t4v,t5v);
             neqv = _mm256_sub_epi64(neqv,currentNodev);
+            t_tx1v = _mm256_xor_pd(tx1v,_mm256_castsi256_pd(onesv));
+            tmp = _mm256_and_pd(tmp,t3v);
             neqv = _mm256_srli_epi64(neqv, 32);
+            t_ty1v  = _mm256_xor_pd(ty1v,_mm256_castsi256_pd(onesv));
+            tmp = _mm256_and_pd(tmp,t_tx1v);
             neqv = _mm256_srai_epi32(neqv, 31);
+            t_tz1v = _mm256_xor_pd(tzmv,_mm256_castsi256_pd(onesv));
+            tmp = _mm256_and_pd(tmp,t_ty1v);
             eqv = _mm256_xor_si256(neqv,onesv);
-            valid_nodev = compute_valid_node(t4v,t5v,t3v,tx1v,ty1v,tzmv);
+            tmpv = _mm256_and_si256(currentNodev,neqv);
+            tmp = _mm256_and_pd(tmp,t_tz1v);
+            tmp = _mm256_castsi256_pd(_mm256_srli_epi64(_mm256_castpd_si256(tmp), 32));
+            valid_nodev = _mm256_srai_epi32(_mm256_castpd_si256(tmp), 31);
+            //valid_nodev = compute_valid_node(t4v,t5v,t3v,tx1v,ty1v,tzmv);
             tmp_nodev = _mm256_and_si256(valid_nodev,eqv);
             tmp_nodev = _mm256_and_si256(tmp_nodev, currentNodev);
             tmp_av = _mm256_or_si256(tmp_av,tmp_nodev);
-            tmpv = _mm256_and_si256(currentNodev,neqv);
             currentNodev = _mm256_and_si256(nextNode6,eqv);
             currentNodev = _mm256_or_si256(currentNodev,tmpv);
 
@@ -616,11 +685,21 @@ double** proc_subtree(double* tx0, double* ty0, double* tz0,
             cur_index[7u^a[i]] += (1 & valid_node & eq);
             */
             neqv = _mm256_castpd_si256(_mm256_broadcast_sd((double*)(node_vals+7)));
+            tmp = _mm256_and_pd(t4v,t5v);
             neqv = _mm256_sub_epi64(neqv,currentNodev);
+            t_tx1v = _mm256_xor_pd(tx1v,_mm256_castsi256_pd(onesv));
+            tmp = _mm256_and_pd(tmp,t6v);
             neqv = _mm256_srli_epi64(neqv, 32);
+            t_ty1v  = _mm256_xor_pd(ty1v,_mm256_castsi256_pd(onesv));
+            tmp = _mm256_and_pd(tmp,t_tx1v);
             neqv = _mm256_srai_epi32(neqv, 31);
+            t_tz1v = _mm256_xor_pd(tz1v,_mm256_castsi256_pd(onesv));
+            tmp = _mm256_and_pd(tmp,t_ty1v);
             eqv = _mm256_xor_si256(neqv,onesv);
-            valid_nodev = compute_valid_node(t4v,t5v,t6v,tx1v,ty1v,tz1v);
+            tmp = _mm256_and_pd(tmp,t_tz1v);
+            tmp = _mm256_castsi256_pd(_mm256_srli_epi64(_mm256_castpd_si256(tmp), 32));
+            valid_nodev = _mm256_srai_epi32(_mm256_castpd_si256(tmp), 31);
+            //valid_nodev = compute_valid_node(t4v,t5v,t6v,tx1v,ty1v,tz1v);
             tmp_nodev = _mm256_and_si256(valid_nodev,eqv);
             tmp_nodev = _mm256_and_si256(tmp_nodev, currentNodev);
             tmp_av = _mm256_or_si256(tmp_av,tmp_nodev);
